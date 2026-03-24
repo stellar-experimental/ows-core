@@ -209,16 +209,27 @@ describe('@open-wallet-standard/core', () => {
     deleteWallet('all-chain-signer', vaultDir);
   });
 
-  it('signs transactions on all chains', () => {
+  it('signs transactions on all generic transaction chains', () => {
     createWallet('tx-signer', undefined, 12, vaultDir);
     const txHex = 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef';
 
-    for (const chain of ['evm', 'solana', 'stellar', 'sui', 'bitcoin', 'cosmos', 'tron', 'ton', 'filecoin']) {
+    for (const chain of ['evm', 'solana', 'sui', 'bitcoin', 'cosmos', 'tron', 'ton', 'filecoin']) {
       const result = signTransaction('tx-signer', chain, txHex, undefined, undefined, vaultDir);
       assert.ok(result.signature.length > 0, `signature should be non-empty for ${chain}`);
     }
 
     deleteWallet('tx-signer', vaultDir);
+  });
+
+  it('rejects generic Stellar transaction signing', () => {
+    createWallet('stellar-tx', undefined, 12, vaultDir);
+
+    assert.throws(
+      () => signTransaction('stellar-tx', 'stellar', 'deadbeef', undefined, undefined, vaultDir),
+      /generic transaction signing is not supported for Stellar/
+    );
+
+    deleteWallet('stellar-tx', vaultDir);
   });
 
   // ---- Determinism ----

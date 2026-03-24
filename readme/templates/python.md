@@ -23,7 +23,7 @@ The package is **fully self-contained** — it embeds the Rust core via native F
 from ows import create_wallet, sign_message
 
 wallet = create_wallet("agent-treasury")
-# => accounts for EVM, Solana, Bitcoin, Cosmos, Tron, TON, Filecoin, and Sui
+# => accounts for EVM, Solana, Stellar, Bitcoin, Cosmos, Tron, TON, Filecoin, and Sui
 
 sig = sign_message("agent-treasury", "evm", "hello")
 print(sig["signature"])
@@ -42,8 +42,9 @@ print(sig["signature"])
 | `export_wallet(name_or_id, passphrase?, vault_path?)` | Export a wallet's mnemonic or keys |
 | `rename_wallet(name_or_id, new_name, vault_path?)` | Rename a wallet |
 | `sign_message(wallet, chain, message, passphrase?, encoding?, index?, vault_path?)` | Sign a message with chain-specific formatting |
+| `sign_auth_entry(wallet, chain, xdr, passphrase?, encoding?, index?, vault_path?)` | Sign a Stellar auth-entry preimage XDR payload |
 | `sign_typed_data(wallet, chain, typed_data_json, passphrase?, index?, vault_path?)` | Sign EIP-712 typed data (EVM only) |
-| `sign_transaction(wallet, chain, tx_hex, passphrase?, index?, vault_path?)` | Sign a raw transaction |
+| `sign_transaction(wallet, chain, tx_hex, passphrase?, index?, vault_path?)` | Sign a raw transaction (non-Stellar) |
 | `sign_and_send(wallet, chain, tx_hex, passphrase?, index?, rpc_url?, vault_path?)` | Sign and broadcast a transaction |
 | `generate_mnemonic(words?)` | Generate a BIP-39 mnemonic phrase |
 | `derive_address(mnemonic, chain, index?)` | Derive an address from a mnemonic |

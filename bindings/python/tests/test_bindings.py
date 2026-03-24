@@ -118,6 +118,15 @@ def test_sign_transaction(vault_dir):
     assert result["recovery_id"] is not None
 
 
+def test_sign_transaction_stellar_unsupported(vault_dir):
+    ows.create_wallet("stellar-signer", vault_path_opt=vault_dir)
+
+    with pytest.raises(Exception, match="generic transaction signing is not supported for Stellar"):
+        ows.sign_transaction(
+            "stellar-signer", "stellar", "deadbeef", vault_path_opt=vault_dir
+        )
+
+
 def test_sign_message(vault_dir):
     ows.create_wallet("msg-signer", vault_path_opt=vault_dir)
 

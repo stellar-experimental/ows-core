@@ -7,6 +7,7 @@
 ### `sign(request: SignRequest): Promise<SignResult>`
 
 Signs a transaction without broadcasting it. Returns the signed transaction bytes.
+Stellar smart-wallet profiles do not use this operation; they use `signAuthEntry`.
 
 ```typescript
 interface SignRequest {
@@ -55,7 +56,7 @@ An implementation that exposes `signAndSend`:
 - MUST fail clearly if the target transport is unavailable or unsupported
 - MAY expose richer transport metadata in implementation-specific fields
 
-Current Stellar smart-wallet profiles omit `signAndSend`. Callers use `signAuthEntry` and then submit through an external fee-payer or relayer.
+Current Stellar smart-wallet profiles omit `signAndSend`. Callers use `signAuthEntry` and then submit through an external fee-payer or relayer such as OpenZeppelin Relayer/Channels.
 
 ### `signMessage(request: SignMessageRequest): Promise<SignMessageResult>`
 
@@ -103,7 +104,7 @@ interface SignAuthEntryResult {
 }
 ```
 
-The caller constructs the canonical auth-entry preimage from simulation output. OWS signs the serialized preimage bytes; it does not own nonce management, expiration-ledger selection, `AuthPayload` assembly, or relayer submission.
+The caller constructs the canonical auth-entry preimage from simulation output. OWS signs the serialized preimage bytes; it does not own nonce management, expiration-ledger selection, `AuthPayload` assembly, or relayer submission. The returned `address` is the Stellar `G...` signer identity, not the deployed OZ smart-account `C...` address.
 
 ### `signTypedData(request: SignTypedDataRequest): Promise<SignMessageResult>`
 
@@ -142,6 +143,8 @@ Returns a `SignMessageResult` with the signature and recovery ID. Only supported
 ## Serialized Transaction Format
 
 Current OWS implementations accept **already-serialized transaction bytes encoded as hex**. OWS signs those bytes, and `signAndSend` implementations submit the signed payload using the transport required by the target chain.
+
+Stellar is the current exception: generic transaction signing is intentionally unsupported for the Stellar smart-wallet profile in this draft implementation. Callers sign serialized Soroban auth-entry preimage bytes with `signAuthEntry`, then submit through an external relayer.
 
 ## Error Handling
 

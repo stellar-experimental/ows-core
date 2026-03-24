@@ -6,7 +6,8 @@
 | `ows wallet list` | List all wallets in the vault |
 | `ows wallet info` | Show vault path and supported chains |
 | `ows sign message` | Sign a message with chain-specific formatting |
-| `ows sign tx` | Sign a raw transaction |
+| `ows sign tx` | Sign a raw transaction (non-Stellar) |
+| `ows sign auth-entry` | Sign a Stellar auth-entry preimage XDR payload |
 | `ows pay request` | Make a paid request to an x402-enabled API endpoint |
 | `ows pay discover` | Discover x402-enabled services |
 | `ows fund deposit` | Create a MoonPay deposit to fund a wallet with USDC |

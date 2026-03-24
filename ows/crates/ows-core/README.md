@@ -28,7 +28,8 @@ cargo build --workspace --release
 | `ows wallet list` | List all wallets in the vault |
 | `ows wallet info` | Show vault path and supported chains |
 | `ows sign message` | Sign a message with chain-specific formatting |
-| `ows sign tx` | Sign a raw transaction |
+| `ows sign tx` | Sign a raw transaction (non-Stellar) |
+| `ows sign auth-entry` | Sign a Stellar auth-entry preimage XDR payload |
 | `ows pay request` | Make a paid request to an x402-enabled API endpoint |
 | `ows pay discover` | Discover x402-enabled services |
 | `ows fund deposit` | Create a MoonPay deposit to fund a wallet with USDC |
@@ -56,7 +57,7 @@ The bindings are **standalone** — they embed the Rust core via native FFI. No 
 import { createWallet, signMessage } from "@open-wallet-standard/core";
 
 const wallet = createWallet("my-wallet");
-console.log(wallet.accounts); // addresses for EVM, Solana, Bitcoin, Cosmos, Tron, TON, Filecoin, and Sui
+console.log(wallet.accounts); // addresses for EVM, Solana, Stellar, Bitcoin, Cosmos, Tron, TON, Filecoin, and Sui
 
 const sig = signMessage("my-wallet", "evm", "hello");
 console.log(sig.signature);
@@ -67,7 +68,7 @@ console.log(sig.signature);
 | Crate | Description |
 |-------|-------------|
 | `ows-core` | Types, CAIP-2/10 parsing, errors, config. Zero crypto dependencies. |
-| `ows-signer` | ChainSigner trait, HD derivation, address derivation for EVM, Solana, Sui, Bitcoin, Cosmos, Tron, TON, Spark, and Filecoin. |
+| `ows-signer` | ChainSigner trait, HD derivation, address derivation for EVM, Solana, Stellar, Sui, Bitcoin, Cosmos, Tron, TON, Spark, and Filecoin. |
 | `ows-lib` | Library interface used by language bindings and the CLI. |
 | `ows-pay` | x402 payment flows, service discovery, and funding helpers. |
 | `ows-cli` | The `ows` command-line tool. |
@@ -76,6 +77,7 @@ console.log(sig.signature);
 
 - **EVM** (Ethereum, Polygon, etc.) — secp256k1, EIP-55 addresses, EIP-191 message signing
 - **Solana** — Ed25519, base58 addresses
+- **Stellar** — Ed25519, `G...` signer addresses and Soroban auth-entry signing for OZ external-signer flows
 - **Sui** — Ed25519, BLAKE2b-256 hex addresses
 - **Bitcoin** — secp256k1, BIP-84 native segwit (bech32)
 - **Cosmos** — secp256k1, bech32 addresses (configurable HRP)

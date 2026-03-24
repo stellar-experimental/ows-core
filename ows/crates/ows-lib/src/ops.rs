@@ -409,6 +409,12 @@ pub fn sign_transaction(
     vault_path: Option<&Path>,
 ) -> Result<SignResult, OwsLibError> {
     let credential = passphrase.unwrap_or("");
+    let chain = parse_chain(chain)?;
+    if chain.chain_type == ows_core::ChainType::Stellar {
+        return Err(OwsLibError::InvalidInput(
+            "generic transaction signing is not supported for Stellar smart-wallet flows; use sign_auth_entry and submit via an external relayer".into(),
+        ));
+    }
 
     let tx_hex_clean = tx_hex.strip_prefix("0x").unwrap_or(tx_hex);
     let tx_bytes = hex::decode(tx_hex_clean)
@@ -416,14 +422,12 @@ pub fn sign_transaction(
 
     // Agent mode: token-based signing with policy enforcement
     if credential.starts_with(crate::key_store::TOKEN_PREFIX) {
-        let chain = parse_chain(chain)?;
         return crate::key_ops::sign_with_api_key(
             credential, wallet, &chain, &tx_bytes, index, vault_path,
         );
     }
 
     // Owner mode: existing passphrase-based signing (unchanged)
-    let chain = parse_chain(chain)?;
     let key = decrypt_signing_key(wallet, chain.chain_type, credential, index, vault_path)?;
     let signer = signer_for_chain(chain.chain_type);
     let output = signer.sign_transaction(key.expose(), &tx_bytes)?;
@@ -486,6 +490,9 @@ pub fn sign_message(
 /// This is the Stellar smart-wallet signing primitive used for OZ
 /// `Signer::External` Ed25519 signer flows. The caller is responsible for
 /// constructing the canonical preimage XDR bytes from simulation output.
+///
+/// This function does not parse or validate the XDR structure itself; it signs
+/// the provided serialized preimage bytes as supplied by the caller.
 pub fn sign_auth_entry(
     wallet: &str,
     chain: &str,
@@ -1114,7 +1121,7 @@ mod tests {
         let solana_tx_hex = hex::encode(&solana_tx);
 
         let chains = [
-            "evm", "solana", "stellar", "bitcoin", "cosmos", "tron", "ton", "spark", "sui",
+            "evm", "solana", "bitcoin", "cosmos", "tron", "ton", "spark", "sui",
         ];
         for chain in &chains {
             let tx = if *chain == "solana" {
@@ -1129,6 +1136,22 @@ mod tests {
                 result.err()
             );
         }
+    }
+
+    #[test]
+    fn stellar_sign_transaction_is_explicitly_unsupported() {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = dir.path();
+        create_wallet("stellar-tx", None, None, Some(vault)).unwrap();
+
+        let err = sign_transaction("stellar-tx", "stellar", "deadbeef", None, None, Some(vault))
+            .unwrap_err();
+
+        assert!(
+            err.to_string()
+                .contains("generic transaction signing is not supported for Stellar"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]

@@ -116,6 +116,7 @@ console.log(wallet.accounts);
 // => [
 //   { chainId: "eip155:1", address: "0x...", derivationPath: "m/44'/60'/0'/0/0" },
 //   { chainId: "solana:5eykt4...", address: "7Kz9...", derivationPath: "m/44'/501'/0'/0'" },
+//   { chainId: "stellar:pubnet", address: "G...", derivationPath: "m/44'/148'/0'" },
 //   { chainId: "bip122:000...", address: "bc1q...", derivationPath: "m/84'/0'/0'/0/0" },
 //   { chainId: "cosmos:cosmoshub-4", address: "cosmos1...", derivationPath: "m/44'/118'/0'/0/0" },
 //   { chainId: "tron:mainnet", address: "TKLm...", derivationPath: "m/44'/195'/0'/0/0" },
@@ -279,9 +280,9 @@ console.log(result.address);
 console.log(result.signature);
 ```
 
-Use `"base64"` encoding by default, or `"hex"` when you already have hex-encoded XDR bytes. `signAndSend` is not supported for Stellar smart-wallet flows in this draft implementation.
+Use `"base64"` encoding by default, or `"hex"` when you already have hex-encoded XDR bytes. `signAndSend` is not supported for Stellar smart-wallet flows in this draft implementation. The returned `address` is the Stellar `G...` signer identity, not the OZ smart-account `C...` address.
 
-**Returns:** `SignResult`
+**Returns:** `StellarAuthEntryResult`
 
 #### `signTypedData(wallet, chain, typedDataJson, passphrase?, index?, vaultPath?)`
 
@@ -330,6 +331,8 @@ Sign a raw transaction (hex-encoded bytes).
 const result = signTransaction("agent-treasury", "evm", "02f8...");
 console.log(result.signature);
 ```
+
+Stellar is intentionally excluded in this draft implementation. For Stellar smart-wallet flows, use `signAuthEntry(...)` and then submit through an external relayer such as OpenZeppelin Relayer/Channels.
 
 **Returns:** `SignResult`
 

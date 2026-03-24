@@ -28,6 +28,11 @@ pub fn run(
 
     // Owner mode: resolve key directly (existing behavior)
     let chain = parse_chain(chain_str)?;
+    if chain.chain_type == ows_core::ChainType::Stellar {
+        return Err(CliError::InvalidArgs(
+            "generic transaction signing is not supported for Stellar smart-wallet flows; use `ows sign auth-entry` and submit via an external relayer".into(),
+        ));
+    }
     let key = super::resolve_signing_key(wallet_name, chain.chain_type, index)?;
 
     let tx_hex_clean = tx_hex.strip_prefix("0x").unwrap_or(tx_hex);

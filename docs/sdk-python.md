@@ -242,7 +242,7 @@ print(result["address"])
 print(result["signature"])
 ```
 
-Use `encoding="base64"` by default, or `encoding="hex"` when you already have hex-encoded XDR bytes. `sign_and_send` is not supported for Stellar smart-wallet flows in this draft implementation.
+Use `encoding="base64"` by default, or `encoding="hex"` when you already have hex-encoded XDR bytes. `sign_and_send` is not supported for Stellar smart-wallet flows in this draft implementation. The returned `address` is the Stellar `G...` signer identity, not the OZ smart-account `C...` address.
 
 #### `sign_typed_data(wallet, chain, typed_data_json, passphrase=None, index=None, vault_path=None)`
 
@@ -282,6 +282,8 @@ Sign a raw transaction (hex-encoded bytes).
 result = sign_transaction("agent-treasury", "evm", "02f8...")
 print(result["signature"])
 ```
+
+Stellar is intentionally excluded in this draft implementation. For Stellar smart-wallet flows, use `sign_auth_entry(...)` and then submit through an external relayer such as OpenZeppelin Relayer/Channels.
 
 #### `sign_and_send(wallet, chain, tx_hex, passphrase=None, index=None, rpc_url=None, vault_path=None)`
 

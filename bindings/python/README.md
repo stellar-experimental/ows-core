@@ -10,7 +10,7 @@ Local, policy-gated signing and wallet management for every chain.
 ## Why OWS
 
 - **Local key custody.** Private keys stay encrypted at rest and are decrypted only inside the OWS signing path after the relevant checks pass. Current implementations harden in-process memory handling and wipe key material after use.
-- **Every chain, one interface.** EVM, Solana, Sui, Bitcoin, Cosmos, Tron, TON, Spark, Filecoin — all first-class. CAIP-2/CAIP-10 addressing abstracts away chain-specific details.
+- **Every chain, one interface.** EVM, Solana, Stellar, Sui, Bitcoin, Cosmos, Tron, TON, Spark, and Filecoin are all supported. CAIP-2/CAIP-10 addressing abstracts away chain-specific details.
 - **Policy before signing.** A pre-signing policy engine gates agent (API key) operations before decryption — chain allowlists, expiry, and optional custom executables.
 - **Built for agents.** Native SDK and CLI today. A wallet created by one tool works in every other.
 
@@ -28,7 +28,7 @@ The package is **fully self-contained** — it embeds the Rust core via native F
 from ows import create_wallet, sign_message
 
 wallet = create_wallet("agent-treasury")
-# => accounts for EVM, Solana, Bitcoin, Cosmos, Tron, TON, Filecoin, and Sui
+# => accounts for EVM, Solana, Stellar, Bitcoin, Cosmos, Tron, TON, Filecoin, and Sui
 
 sig = sign_message("agent-treasury", "evm", "hello")
 print(sig["signature"])
@@ -47,8 +47,9 @@ print(sig["signature"])
 | `export_wallet(name_or_id, passphrase?, vault_path?)` | Export a wallet's mnemonic or keys |
 | `rename_wallet(name_or_id, new_name, vault_path?)` | Rename a wallet |
 | `sign_message(wallet, chain, message, passphrase?, encoding?, index?, vault_path?)` | Sign a message with chain-specific formatting |
+| `sign_auth_entry(wallet, chain, xdr, passphrase?, encoding?, index?, vault_path?)` | Sign a Stellar auth-entry preimage XDR payload |
 | `sign_typed_data(wallet, chain, typed_data_json, passphrase?, index?, vault_path?)` | Sign EIP-712 typed data (EVM only) |
-| `sign_transaction(wallet, chain, tx_hex, passphrase?, index?, vault_path?)` | Sign a raw transaction |
+| `sign_transaction(wallet, chain, tx_hex, passphrase?, index?, vault_path?)` | Sign a raw transaction (non-Stellar) |
 | `sign_and_send(wallet, chain, tx_hex, passphrase?, index?, rpc_url?, vault_path?)` | Sign and broadcast a transaction |
 | `generate_mnemonic(words?)` | Generate a BIP-39 mnemonic phrase |
 | `derive_address(mnemonic, chain, index?)` | Derive an address from a mnemonic |
@@ -66,6 +67,7 @@ print(sig["signature"])
 |-------|-------|----------------|-----------------|
 | EVM (Ethereum, Polygon, etc.) | secp256k1 | EIP-55 checksummed | `m/44'/60'/0'/0/0` |
 | Solana | Ed25519 | base58 | `m/44'/501'/0'/0'` |
+| Stellar | Ed25519 | Strkey `G...` | `m/44'/148'/0'` |
 | Bitcoin | secp256k1 | BIP-84 bech32 | `m/84'/0'/0'/0/0` |
 | Cosmos | secp256k1 | bech32 | `m/44'/118'/0'/0/0` |
 | Tron | secp256k1 | base58check | `m/44'/195'/0'/0/0` |

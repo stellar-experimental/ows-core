@@ -25,6 +25,8 @@ pub struct SignResult {
 }
 
 /// Result from signing a serialized Stellar auth-entry preimage XDR payload.
+/// The returned address is the Stellar G-address for the signer key, not the
+/// deployed smart-account C-address.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StellarAuthEntryResult {
     pub address: String,

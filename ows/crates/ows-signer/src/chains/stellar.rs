@@ -83,13 +83,12 @@ impl ChainSigner for StellarSigner {
 
     fn sign_transaction(
         &self,
-        private_key: &[u8],
-        tx_bytes: &[u8],
+        _private_key: &[u8],
+        _tx_bytes: &[u8],
     ) -> Result<SignOutput, SignerError> {
-        // Stellar smart-wallet flows use sign_auth_entry over XDR preimages.
-        // The generic transaction API keeps parity with other Ed25519 chains
-        // and signs the provided raw bytes directly.
-        self.sign(private_key, tx_bytes)
+        Err(SignerError::InvalidTransaction(
+            "generic transaction signing is not supported for Stellar; use sign_auth_entry for Soroban smart-account auth flows".into(),
+        ))
     }
 
     fn default_derivation_path(&self, index: u32) -> String {

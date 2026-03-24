@@ -271,6 +271,8 @@ Sign a raw transaction (hex-encoded bytes).
 ows sign tx --wallet "my-wallet" --chain evm --tx "02f8..."
 ```
 
+Stellar is intentionally excluded in this draft implementation. For Stellar smart-wallet flows, use `ows sign auth-entry` and then submit through an external relayer such as OpenZeppelin Relayer/Channels.
+
 ### `ows sign auth-entry`
 
 Sign a serialized Stellar auth-entry preimage XDR payload for OZ smart-account flows.
@@ -283,13 +285,15 @@ ows sign auth-entry \
   --encoding base64
 ```
 
-This command returns the Ed25519 signature for the preimage along with the signer `G...` address when `--json` is used. `ows sign send-tx` remains unsupported for Stellar smart-wallet flows in this draft implementation.
+This command returns the Ed25519 signature for the preimage along with the signer `G...` address when `--json` is used. That `G...` address identifies the signer key, not the deployed OZ smart-account `C...` address. `ows sign send-tx` remains unsupported for Stellar smart-wallet flows in this draft implementation.
 
 | Flag | Description |
 |------|-------------|
 | `--wallet <NAME>` | Wallet name or ID |
 | `--chain <CHAIN>` | Chain family |
-| `--tx <HEX>` | Hex-encoded transaction bytes |
+| `--xdr <XDR>` | Base64 or hex-encoded auth-entry preimage bytes |
+| `--encoding <ENC>` | `base64` (default) or `hex` |
+| `--index <N>` | Account index |
 | `--json` | Output structured JSON |
 
 Passphrases and API tokens are supplied via `OWS_PASSPHRASE` or an interactive prompt, not a dedicated `--passphrase` flag.
