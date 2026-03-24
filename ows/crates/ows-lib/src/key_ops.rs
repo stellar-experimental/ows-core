@@ -204,6 +204,65 @@ pub fn sign_message_with_api_key(
     })
 }
 
+/// Sign a serialized Stellar auth-entry preimage XDR payload using an API token.
+pub fn sign_auth_entry_with_api_key(
+    token: &str,
+    wallet_name_or_id: &str,
+    chain: &ows_core::Chain,
+    preimage_xdr: &[u8],
+    index: Option<u32>,
+    vault_path: Option<&Path>,
+) -> Result<crate::types::StellarAuthEntryResult, OwsLibError> {
+    let token_hash = key_store::hash_token(token);
+    let key_file = key_store::load_api_key_by_token_hash(&token_hash, vault_path)?;
+
+    check_expiry(&key_file)?;
+
+    let wallet = vault::load_wallet_by_name_or_id(wallet_name_or_id, vault_path)?;
+    if !key_file.wallet_ids.contains(&wallet.id) {
+        return Err(OwsLibError::InvalidInput(format!(
+            "API key '{}' does not have access to wallet '{}'",
+            key_file.name, wallet.id,
+        )));
+    }
+
+    let policies = load_policies_for_key(&key_file, vault_path)?;
+    let now = chrono::Utc::now();
+    let date = now.format("%Y-%m-%d").to_string();
+
+    let context = ows_core::PolicyContext {
+        chain_id: chain.chain_id.to_string(),
+        wallet_id: wallet.id.clone(),
+        api_key_id: key_file.id.clone(),
+        transaction: ows_core::policy::TransactionContext {
+            to: None,
+            value: None,
+            raw_hex: hex::encode(preimage_xdr),
+            data: None,
+        },
+        spending: noop_spending_context(&date),
+        timestamp: now.to_rfc3339(),
+    };
+
+    let result = policy_engine::evaluate_policies(&policies, &context);
+    if !result.allow {
+        return Err(OwsLibError::Core(OwsError::PolicyDenied {
+            policy_id: result.policy_id.unwrap_or_default(),
+            reason: result.reason.unwrap_or_else(|| "denied".into()),
+        }));
+    }
+
+    let key = decrypt_key_from_api_key(&key_file, &wallet.id, token, chain.chain_type, index)?;
+    let signed = ows_signer::chains::StellarSigner.sign_auth_entry(key.expose(), preimage_xdr)?;
+
+    Ok(crate::types::StellarAuthEntryResult {
+        address: signed.address,
+        public_key: hex::encode(signed.public_key),
+        payload_hash: hex::encode(signed.payload_hash),
+        signature: hex::encode(signed.signature),
+    })
+}
+
 /// Enforce policies for a token-based transaction and return the decrypted
 /// signing key. Used by `sign_and_send` which needs the raw key for broadcast.
 pub fn enforce_policy_and_decrypt_key(

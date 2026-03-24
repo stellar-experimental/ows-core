@@ -7,6 +7,7 @@ use std::str::FromStr;
 pub enum ChainType {
     Evm,
     Solana,
+    Stellar,
     Cosmos,
     Bitcoin,
     Tron,
@@ -17,9 +18,10 @@ pub enum ChainType {
 }
 
 /// All supported chain families, used for universal wallet derivation.
-pub const ALL_CHAIN_TYPES: [ChainType; 8] = [
+pub const ALL_CHAIN_TYPES: [ChainType; 9] = [
     ChainType::Evm,
     ChainType::Solana,
+    ChainType::Stellar,
     ChainType::Bitcoin,
     ChainType::Cosmos,
     ChainType::Tron,
@@ -79,6 +81,16 @@ pub const KNOWN_CHAINS: &[Chain] = &[
         chain_id: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
     },
     Chain {
+        name: "stellar",
+        chain_type: ChainType::Stellar,
+        chain_id: "stellar:pubnet",
+    },
+    Chain {
+        name: "stellar-testnet",
+        chain_type: ChainType::Stellar,
+        chain_id: "stellar:testnet",
+    },
+    Chain {
         name: "bitcoin",
         chain_type: ChainType::Bitcoin,
         chain_id: "bip122:000000000019d6689c085ae165831e93",
@@ -125,6 +137,7 @@ pub fn parse_chain(s: &str) -> Result<Chain, String> {
     // Legacy family name backward compat
     let lookup = match lower.as_str() {
         "evm" => "ethereum",
+        "xlm" => "stellar",
         _ => &lower,
     };
 
@@ -170,6 +183,7 @@ impl ChainType {
         match self {
             ChainType::Evm => "eip155",
             ChainType::Solana => "solana",
+            ChainType::Stellar => "stellar",
             ChainType::Cosmos => "cosmos",
             ChainType::Bitcoin => "bip122",
             ChainType::Tron => "tron",
@@ -185,6 +199,7 @@ impl ChainType {
         match self {
             ChainType::Evm => 60,
             ChainType::Solana => 501,
+            ChainType::Stellar => 148,
             ChainType::Cosmos => 118,
             ChainType::Bitcoin => 0,
             ChainType::Tron => 195,
@@ -200,6 +215,7 @@ impl ChainType {
         match ns {
             "eip155" => Some(ChainType::Evm),
             "solana" => Some(ChainType::Solana),
+            "stellar" => Some(ChainType::Stellar),
             "cosmos" => Some(ChainType::Cosmos),
             "bip122" => Some(ChainType::Bitcoin),
             "tron" => Some(ChainType::Tron),
@@ -217,6 +233,7 @@ impl fmt::Display for ChainType {
         let s = match self {
             ChainType::Evm => "evm",
             ChainType::Solana => "solana",
+            ChainType::Stellar => "stellar",
             ChainType::Cosmos => "cosmos",
             ChainType::Bitcoin => "bitcoin",
             ChainType::Tron => "tron",
@@ -236,6 +253,7 @@ impl FromStr for ChainType {
         match s.to_lowercase().as_str() {
             "evm" => Ok(ChainType::Evm),
             "solana" => Ok(ChainType::Solana),
+            "stellar" => Ok(ChainType::Stellar),
             "cosmos" => Ok(ChainType::Cosmos),
             "bitcoin" => Ok(ChainType::Bitcoin),
             "tron" => Ok(ChainType::Tron),
@@ -266,6 +284,7 @@ mod tests {
         for (chain, expected) in [
             (ChainType::Evm, "\"evm\""),
             (ChainType::Solana, "\"solana\""),
+            (ChainType::Stellar, "\"stellar\""),
             (ChainType::Cosmos, "\"cosmos\""),
             (ChainType::Bitcoin, "\"bitcoin\""),
             (ChainType::Tron, "\"tron\""),
@@ -285,6 +304,7 @@ mod tests {
     fn test_namespace_mapping() {
         assert_eq!(ChainType::Evm.namespace(), "eip155");
         assert_eq!(ChainType::Solana.namespace(), "solana");
+        assert_eq!(ChainType::Stellar.namespace(), "stellar");
         assert_eq!(ChainType::Cosmos.namespace(), "cosmos");
         assert_eq!(ChainType::Bitcoin.namespace(), "bip122");
         assert_eq!(ChainType::Tron.namespace(), "tron");
@@ -298,6 +318,7 @@ mod tests {
     fn test_coin_type_mapping() {
         assert_eq!(ChainType::Evm.default_coin_type(), 60);
         assert_eq!(ChainType::Solana.default_coin_type(), 501);
+        assert_eq!(ChainType::Stellar.default_coin_type(), 148);
         assert_eq!(ChainType::Cosmos.default_coin_type(), 118);
         assert_eq!(ChainType::Bitcoin.default_coin_type(), 0);
         assert_eq!(ChainType::Tron.default_coin_type(), 195);
@@ -311,6 +332,10 @@ mod tests {
     fn test_from_namespace() {
         assert_eq!(ChainType::from_namespace("eip155"), Some(ChainType::Evm));
         assert_eq!(ChainType::from_namespace("solana"), Some(ChainType::Solana));
+        assert_eq!(
+            ChainType::from_namespace("stellar"),
+            Some(ChainType::Stellar)
+        );
         assert_eq!(ChainType::from_namespace("cosmos"), Some(ChainType::Cosmos));
         assert_eq!(
             ChainType::from_namespace("bip122"),
@@ -328,12 +353,14 @@ mod tests {
     fn test_from_str() {
         assert_eq!("evm".parse::<ChainType>().unwrap(), ChainType::Evm);
         assert_eq!("Solana".parse::<ChainType>().unwrap(), ChainType::Solana);
+        assert_eq!("stellar".parse::<ChainType>().unwrap(), ChainType::Stellar);
         assert!("unknown".parse::<ChainType>().is_err());
     }
 
     #[test]
     fn test_display() {
         assert_eq!(ChainType::Evm.to_string(), "evm");
+        assert_eq!(ChainType::Stellar.to_string(), "stellar");
         assert_eq!(ChainType::Bitcoin.to_string(), "bitcoin");
     }
 
@@ -366,13 +393,27 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_chain_stellar() {
+        let chain = parse_chain("stellar").unwrap();
+        assert_eq!(chain.chain_type, ChainType::Stellar);
+        assert_eq!(chain.chain_id, "stellar:pubnet");
+    }
+
+    #[test]
+    fn test_parse_chain_stellar_testnet() {
+        let chain = parse_chain("stellar:testnet").unwrap();
+        assert_eq!(chain.chain_type, ChainType::Stellar);
+        assert_eq!(chain.chain_id, "stellar:testnet");
+    }
+
+    #[test]
     fn test_parse_chain_unknown() {
         assert!(parse_chain("unknown_chain").is_err());
     }
 
     #[test]
     fn test_all_chain_types() {
-        assert_eq!(ALL_CHAIN_TYPES.len(), 8);
+        assert_eq!(ALL_CHAIN_TYPES.len(), 9);
     }
 
     #[test]

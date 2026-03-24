@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::process::Command;
 
+use base64::Engine;
 use ows_core::{
     default_chain_for_type, ChainType, Config, EncryptedWallet, KeyType, WalletAccount,
     ALL_CHAIN_TYPES,
@@ -11,7 +12,7 @@ use ows_signer::{
 };
 
 use crate::error::OwsLibError;
-use crate::types::{AccountInfo, SendResult, SignResult, WalletInfo};
+use crate::types::{AccountInfo, SendResult, SignResult, StellarAuthEntryResult, WalletInfo};
 use crate::vault;
 
 /// Convert an EncryptedWallet to the binding-friendly WalletInfo.
@@ -245,7 +246,7 @@ fn decode_hex_key(hex_str: &str) -> Result<Vec<u8>, OwsLibError> {
 
 /// Import a wallet from a hex-encoded private key.
 /// The `chain` parameter specifies which chain the key originates from (e.g. "evm", "solana").
-/// A random key is generated for the other curve so all 6 chains are supported.
+/// A random key is generated for the other curve so all supported chain families are covered.
 ///
 /// Alternatively, provide both `secp256k1_key_hex` and `ed25519_key_hex` to supply
 /// explicit keys for each curve. When both are given, `private_key_hex` and `chain`
@@ -480,6 +481,68 @@ pub fn sign_message(
     })
 }
 
+/// Sign a serialized Stellar auth-entry preimage XDR payload.
+///
+/// This is the Stellar smart-wallet signing primitive used for OZ
+/// `Signer::External` Ed25519 signer flows. The caller is responsible for
+/// constructing the canonical preimage XDR bytes from simulation output.
+pub fn sign_auth_entry(
+    wallet: &str,
+    chain: &str,
+    preimage_xdr: &str,
+    passphrase: Option<&str>,
+    encoding: Option<&str>,
+    index: Option<u32>,
+    vault_path: Option<&Path>,
+) -> Result<StellarAuthEntryResult, OwsLibError> {
+    let credential = passphrase.unwrap_or("");
+    let chain = parse_chain(chain)?;
+    if chain.chain_type != ows_core::ChainType::Stellar {
+        return Err(OwsLibError::InvalidInput(
+            "auth-entry signing is only supported for Stellar chains".into(),
+        ));
+    }
+
+    let encoding = encoding.unwrap_or("base64");
+    let preimage_bytes = match encoding {
+        "base64" => base64::engine::general_purpose::STANDARD
+            .decode(preimage_xdr)
+            .map_err(|e| OwsLibError::InvalidInput(format!("invalid base64 XDR payload: {e}")))?,
+        "hex" => {
+            let cleaned = preimage_xdr.strip_prefix("0x").unwrap_or(preimage_xdr);
+            hex::decode(cleaned)
+                .map_err(|e| OwsLibError::InvalidInput(format!("invalid hex XDR payload: {e}")))?
+        }
+        _ => {
+            return Err(OwsLibError::InvalidInput(format!(
+                "unsupported encoding: {encoding} (use 'base64' or 'hex')"
+            )))
+        }
+    };
+
+    if credential.starts_with(crate::key_store::TOKEN_PREFIX) {
+        return crate::key_ops::sign_auth_entry_with_api_key(
+            credential,
+            wallet,
+            &chain,
+            &preimage_bytes,
+            index,
+            vault_path,
+        );
+    }
+
+    let key = decrypt_signing_key(wallet, chain.chain_type, credential, index, vault_path)?;
+    let signed =
+        ows_signer::chains::StellarSigner.sign_auth_entry(key.expose(), &preimage_bytes)?;
+
+    Ok(StellarAuthEntryResult {
+        address: signed.address,
+        public_key: hex::encode(signed.public_key),
+        payload_hash: hex::encode(signed.payload_hash),
+        signature: hex::encode(signed.signature),
+    })
+}
+
 /// Sign EIP-712 typed structured data. Returns hex-encoded signature.
 /// Only supported for EVM chains.
 ///
@@ -534,6 +597,13 @@ pub fn sign_and_send(
     vault_path: Option<&Path>,
 ) -> Result<SendResult, OwsLibError> {
     let credential = passphrase.unwrap_or("");
+    let chain_info = parse_chain(chain)?;
+
+    if chain_info.chain_type == ows_core::ChainType::Stellar {
+        return Err(OwsLibError::InvalidInput(
+            "sign_and_send is not yet supported for Stellar smart-wallet flows; use sign_auth_entry and submit via an external relayer".into(),
+        ));
+    }
 
     let tx_hex_clean = tx_hex.strip_prefix("0x").unwrap_or(tx_hex);
     let tx_bytes = hex::decode(tx_hex_clean)
@@ -541,7 +611,6 @@ pub fn sign_and_send(
 
     // Agent mode: enforce policies, decrypt key, then sign + broadcast
     if credential.starts_with(crate::key_store::TOKEN_PREFIX) {
-        let chain_info = parse_chain(chain)?;
         let (key, _) = crate::key_ops::enforce_policy_and_decrypt_key(
             credential,
             wallet,
@@ -554,7 +623,6 @@ pub fn sign_and_send(
     }
 
     // Owner mode
-    let chain_info = parse_chain(chain)?;
     let key = decrypt_signing_key(wallet, chain_info.chain_type, credential, index, vault_path)?;
 
     sign_encode_and_broadcast(key.expose(), chain, &tx_bytes, rpc_url)
@@ -677,6 +745,9 @@ fn broadcast(chain: ChainType, rpc_url: &str, signed_bytes: &[u8]) -> Result<Str
     match chain {
         ChainType::Evm => broadcast_evm(rpc_url, signed_bytes),
         ChainType::Solana => broadcast_solana(rpc_url, signed_bytes),
+        ChainType::Stellar => Err(OwsLibError::InvalidInput(
+            "broadcast not yet supported for Stellar smart-wallet flows".into(),
+        )),
         ChainType::Bitcoin => broadcast_bitcoin(rpc_url, signed_bytes),
         ChainType::Cosmos => broadcast_cosmos(rpc_url, signed_bytes),
         ChainType::Tron => broadcast_tron(rpc_url, signed_bytes),
@@ -920,7 +991,9 @@ mod tests {
     #[test]
     fn derive_address_all_chains() {
         let phrase = generate_mnemonic(12).unwrap();
-        let chains = ["evm", "solana", "bitcoin", "cosmos", "tron", "ton", "sui"];
+        let chains = [
+            "evm", "solana", "stellar", "bitcoin", "cosmos", "tron", "ton", "sui",
+        ];
         for chain in &chains {
             let addr = derive_address(&phrase, chain, None).unwrap();
             assert!(!addr.is_empty(), "address should be non-empty for {chain}");
@@ -1001,7 +1074,7 @@ mod tests {
         create_wallet("multi-sign", None, None, Some(vault)).unwrap();
 
         let chains = [
-            "evm", "solana", "bitcoin", "cosmos", "tron", "ton", "spark", "sui",
+            "evm", "solana", "stellar", "bitcoin", "cosmos", "tron", "ton", "spark", "sui",
         ];
         for chain in &chains {
             let result = sign_message(
@@ -1041,7 +1114,7 @@ mod tests {
         let solana_tx_hex = hex::encode(&solana_tx);
 
         let chains = [
-            "evm", "solana", "bitcoin", "cosmos", "tron", "ton", "spark", "sui",
+            "evm", "solana", "stellar", "bitcoin", "cosmos", "tron", "ton", "spark", "sui",
         ];
         for chain in &chains {
             let tx = if *chain == "solana" {
@@ -1114,6 +1187,54 @@ mod tests {
         let tx = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
         let sig = sign_transaction("pk-tx", "evm", tx, None, None, Some(dir.path())).unwrap();
         assert!(!sig.signature.is_empty());
+    }
+
+    #[test]
+    fn stellar_auth_entry_signing_returns_payload_hash_and_signature() {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = dir.path();
+        create_wallet("stellar-auth", None, None, Some(vault)).unwrap();
+
+        let preimage = base64::engine::general_purpose::STANDARD.encode(b"fake-auth-xdr");
+        let result = sign_auth_entry(
+            "stellar-auth",
+            "stellar",
+            &preimage,
+            None,
+            Some("base64"),
+            None,
+            Some(vault),
+        )
+        .unwrap();
+
+        assert!(result.address.starts_with('G'));
+        assert_eq!(hex::decode(&result.public_key).unwrap().len(), 32);
+        assert_eq!(hex::decode(&result.payload_hash).unwrap().len(), 32);
+        assert_eq!(hex::decode(&result.signature).unwrap().len(), 64);
+    }
+
+    #[test]
+    fn stellar_sign_and_send_is_explicitly_unsupported() {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = dir.path();
+        create_wallet("stellar-send", None, None, Some(vault)).unwrap();
+
+        let err = sign_and_send(
+            "stellar-send",
+            "stellar",
+            "deadbeef",
+            None,
+            None,
+            None,
+            Some(vault),
+        )
+        .unwrap_err();
+
+        assert!(
+            err.to_string()
+                .contains("sign_and_send is not yet supported for Stellar"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]

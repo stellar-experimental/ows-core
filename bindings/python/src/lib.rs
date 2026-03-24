@@ -205,6 +205,39 @@ fn sign_message(
     })
 }
 
+/// Sign a serialized Stellar auth-entry preimage XDR payload.
+#[pyfunction]
+#[pyo3(signature = (wallet, chain, xdr, passphrase=None, encoding=None, index=None, vault_path_opt=None))]
+fn sign_auth_entry(
+    wallet: &str,
+    chain: &str,
+    xdr: &str,
+    passphrase: Option<&str>,
+    encoding: Option<&str>,
+    index: Option<u32>,
+    vault_path_opt: Option<String>,
+) -> PyResult<PyObject> {
+    let result = ows_lib::sign_auth_entry(
+        wallet,
+        chain,
+        xdr,
+        passphrase,
+        encoding,
+        index,
+        vault_path(vault_path_opt).as_deref(),
+    )
+    .map_err(map_err)?;
+
+    Python::with_gil(|py| {
+        let dict = pyo3::types::PyDict::new(py);
+        dict.set_item("address", &result.address)?;
+        dict.set_item("public_key", &result.public_key)?;
+        dict.set_item("payload_hash", &result.payload_hash)?;
+        dict.set_item("signature", &result.signature)?;
+        Ok(dict.unbind().into())
+    })
+}
+
 /// Sign EIP-712 typed structured data (EVM only).
 #[pyfunction]
 #[pyo3(signature = (wallet, chain, typed_data_json, passphrase=None, index=None, vault_path_opt=None))]
@@ -425,6 +458,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rename_wallet, m)?)?;
     m.add_function(wrap_pyfunction!(sign_transaction, m)?)?;
     m.add_function(wrap_pyfunction!(sign_message, m)?)?;
+    m.add_function(wrap_pyfunction!(sign_auth_entry, m)?)?;
     m.add_function(wrap_pyfunction!(sign_typed_data, m)?)?;
     m.add_function(wrap_pyfunction!(sign_and_send, m)?)?;
     m.add_function(wrap_pyfunction!(create_policy, m)?)?;

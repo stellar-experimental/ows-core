@@ -31,6 +31,7 @@ OWS groups chains into families that share a cryptographic curve and address der
 |---|---|---|---|---|---|
 | EVM | secp256k1 | 60 | `m/44'/60'/0'/0/{index}` | EIP-55 checksummed hex (`0x...`) | `eip155` |
 | Solana | ed25519 | 501 | `m/44'/501'/{index}'/0'` | Base58-encoded public key | `solana` |
+| Stellar | ed25519 | 148 | `m/44'/148'/{index}'` | Strkey Ed25519 public key (`G...`) | `stellar` |
 | Bitcoin | secp256k1 | 0 | `m/84'/0'/0'/0/{index}` | Bech32 native segwit (`bc1...`) | `bip122` |
 | Cosmos | secp256k1 | 118 | `m/44'/118'/0'/0/{index}` | Bech32 (`cosmos1...`) | `cosmos` |
 | Tron | secp256k1 | 195 | `m/44'/195'/0'/0/{index}` | Base58Check (`T...`) | `tron` |
@@ -60,6 +61,8 @@ Each network has a canonical chain identifier. Endpoint discovery and transport 
 | Name | CAIP-2 Chain ID |
 |---|---|
 | Solana | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` |
+| Stellar Pubnet | `stellar:pubnet` |
+| Stellar Testnet | `stellar:testnet` |
 | Bitcoin | `bip122:000000000019d6689c085ae165831e93` |
 | Cosmos | `cosmos:cosmoshub-4` |
 | Tron | `tron:mainnet` |
@@ -83,6 +86,8 @@ optimism  → eip155:10
 bsc       → eip155:56
 avalanche → eip155:43114
 solana    → solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp
+stellar   → stellar:pubnet
+xlm       → stellar:pubnet
 bitcoin   → bip122:000000000019d6689c085ae165831e93
 cosmos    → cosmos:cosmoshub-4
 tron      → tron:mainnet
@@ -106,6 +111,7 @@ Master Seed (512 bits via PBKDF2)
     │
     ├── m/44'/60'/0'/0/0    → EVM Account 0
     ├── m/44'/501'/0'/0'    → Solana Account 0
+    ├── m/44'/148'/0'       → Stellar Account 0
     ├── m/84'/0'/0'/0/0     → Bitcoin Account 0 (native segwit)
     ├── m/44'/118'/0'/0/0   → Cosmos Account 0
     ├── m/44'/195'/0'/0/0   → Tron Account 0
@@ -125,7 +131,7 @@ A single mnemonic derives accounts across all supported chains. The wallet file 
 4. Define the signing and message-signing behavior required by `02-signing-interface.md`.
 5. Document any transaction serialization rules needed to produce deterministic signatures.
 
-No changes to OWS core, the signing interface, or the policy engine are needed.
+Stellar classic fits this pattern. Stellar smart-wallet auth-entry signing adds a chain-specific signing profile on top: callers sign serialized Soroban auth-entry preimage XDR bytes via `signAuthEntry`, then submit through an external relayer or fee-payer flow.
 
 ## References
 

@@ -4,6 +4,7 @@ pub mod evm;
 pub mod filecoin;
 pub mod solana;
 pub mod spark;
+pub mod stellar;
 pub mod sui;
 pub mod ton;
 pub mod tron;
@@ -14,6 +15,7 @@ pub use self::evm::EvmSigner;
 pub use self::filecoin::FilecoinSigner;
 pub use self::solana::SolanaSigner;
 pub use self::spark::SparkSigner;
+pub use self::stellar::{StellarAuthEntrySignature, StellarSigner};
 pub use self::sui::SuiSigner;
 pub use self::ton::TonSigner;
 pub use self::tron::TronSigner;
@@ -26,6 +28,7 @@ pub fn signer_for_chain(chain: ChainType) -> Box<dyn ChainSigner> {
     match chain {
         ChainType::Evm => Box::new(EvmSigner),
         ChainType::Solana => Box::new(SolanaSigner),
+        ChainType::Stellar => Box::new(StellarSigner),
         ChainType::Bitcoin => Box::new(BitcoinSigner::mainnet()),
         ChainType::Cosmos => Box::new(CosmosSigner::cosmos_hub()),
         ChainType::Tron => Box::new(TronSigner),

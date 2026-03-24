@@ -55,6 +55,8 @@ An implementation that exposes `signAndSend`:
 - MUST fail clearly if the target transport is unavailable or unsupported
 - MAY expose richer transport metadata in implementation-specific fields
 
+Current Stellar smart-wallet profiles omit `signAndSend`. Callers use `signAuthEntry` and then submit through an external fee-payer or relayer.
+
 ### `signMessage(request: SignMessageRequest): Promise<SignMessageResult>`
 
 Signs an arbitrary message (for authentication, attestation, or off-chain signatures like EIP-712).
@@ -80,6 +82,28 @@ Message signing follows chain-specific conventions:
 - **Sui**: Intent-prefixed (scope=3) BLAKE2b-256 digest, Ed25519 signature
 - **Cosmos**: ADR-036 off-chain signing
 - **Filecoin**: Blake2b-256 hash then secp256k1 signing
+
+### `signAuthEntry(request: SignAuthEntryRequest): Promise<SignAuthEntryResult>`
+
+Signs a serialized Stellar Soroban auth-entry preimage XDR payload. This is the Stellar smart-wallet primitive used with OZ `Signer::External` Ed25519 signers.
+
+```typescript
+interface SignAuthEntryRequest {
+  walletId: WalletId;
+  chainId: ChainId;                    // Must be a Stellar chain
+  xdr: string;                         // serialized preimage XDR
+  encoding?: "base64" | "hex";         // default: "base64"
+}
+
+interface SignAuthEntryResult {
+  address: string;                     // Stellar G-address for the signer key
+  publicKey: string;                   // 32-byte public key as hex
+  payloadHash: string;                 // SHA-256(preimage_xdr) as hex
+  signature: string;                   // Ed25519 signature as hex
+}
+```
+
+The caller constructs the canonical auth-entry preimage from simulation output. OWS signs the serialized preimage bytes; it does not own nonce management, expiration-ledger selection, `AuthPayload` assembly, or relayer submission.
 
 ### `signTypedData(request: SignTypedDataRequest): Promise<SignMessageResult>`
 

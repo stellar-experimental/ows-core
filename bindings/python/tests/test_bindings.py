@@ -1,6 +1,7 @@
 """Tests for ows Python bindings."""
 
 import tempfile
+import base64
 import pytest
 import ows
 
@@ -40,12 +41,13 @@ def test_create_and_list_wallets(vault_dir):
     wallet = ows.create_wallet("test-wallet", vault_path_opt=vault_dir)
     assert wallet["name"] == "test-wallet"
     assert isinstance(wallet["accounts"], list)
-    assert len(wallet["accounts"]) == 8
+    assert len(wallet["accounts"]) == 9
 
     # Verify each chain family is present
     chain_ids = [a["chain_id"] for a in wallet["accounts"]]
     assert any(c.startswith("eip155:") for c in chain_ids)
     assert any(c.startswith("solana:") for c in chain_ids)
+    assert any(c.startswith("stellar:") for c in chain_ids)
     assert any(c.startswith("sui:") for c in chain_ids)
     assert any(c.startswith("bip122:") for c in chain_ids)
     assert any(c.startswith("cosmos:") for c in chain_ids)
@@ -98,7 +100,7 @@ def test_import_wallet_mnemonic(vault_dir):
         "imported", phrase, vault_path_opt=vault_dir
     )
     assert wallet["name"] == "imported"
-    assert len(wallet["accounts"]) == 8
+    assert len(wallet["accounts"]) == 9
 
     # EVM account should match derived address
     evm_account = next(a for a in wallet["accounts"] if a["chain_id"].startswith("eip155:"))
@@ -123,3 +125,18 @@ def test_sign_message(vault_dir):
         "msg-signer", "evm", "hello world", vault_path_opt=vault_dir
     )
     assert len(result["signature"]) > 0
+
+
+def test_sign_auth_entry(vault_dir):
+    ows.create_wallet("stellar-auth", vault_path_opt=vault_dir)
+
+    result = ows.sign_auth_entry(
+        "stellar-auth",
+        "stellar",
+        base64.b64encode(b"fake-auth-xdr").decode(),
+        vault_path_opt=vault_dir,
+    )
+    assert result["address"].startswith("G")
+    assert len(bytes.fromhex(result["public_key"])) == 32
+    assert len(bytes.fromhex(result["payload_hash"])) == 32
+    assert len(bytes.fromhex(result["signature"])) == 64

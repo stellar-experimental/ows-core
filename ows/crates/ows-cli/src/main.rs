@@ -97,7 +97,7 @@ enum WalletCommands {
         /// Import a raw private key (from OWS_PRIVATE_KEY env or stdin)
         #[arg(long)]
         private_key: bool,
-        /// Source chain for private key import (determines curve: evm/bitcoin/cosmos/tron = secp256k1, solana/ton = ed25519)
+        /// Source chain for private key import (determines curve: evm/bitcoin/cosmos/tron = secp256k1, solana/stellar/ton = ed25519)
         #[arg(long)]
         chain: Option<String>,
         /// Account index for HD derivation (mnemonic only)
@@ -136,9 +136,30 @@ enum WalletCommands {
 
 #[derive(Subcommand)]
 enum SignCommands {
+    /// Sign a serialized Stellar auth-entry preimage XDR payload
+    AuthEntry {
+        /// Chain (stellar or a Stellar CAIP-2 ID)
+        #[arg(long)]
+        chain: String,
+        /// Wallet name or ID (uses stored encrypted mnemonic)
+        #[arg(long, env = "OWS_WALLET")]
+        wallet: String,
+        /// Base64-encoded preimage XDR bytes
+        #[arg(long)]
+        xdr: String,
+        /// XDR encoding: "base64" or "hex"
+        #[arg(long, default_value = "base64")]
+        encoding: String,
+        /// Account index
+        #[arg(long, default_value = "0")]
+        index: u32,
+        /// Output structured JSON instead of raw hex
+        #[arg(long)]
+        json: bool,
+    },
     /// Sign a message with chain-specific formatting (EIP-191, Bitcoin message signing, etc.)
     Message {
-        /// Chain (ethereum, arbitrum, solana, bitcoin, cosmos, tron, or CAIP-2 ID)
+        /// Chain (ethereum, arbitrum, solana, stellar, bitcoin, cosmos, tron, or CAIP-2 ID)
         #[arg(long)]
         chain: String,
         /// Wallet name or ID (uses stored encrypted mnemonic)
@@ -162,7 +183,7 @@ enum SignCommands {
     },
     /// Sign a transaction (accepts hex-encoded unsigned transaction bytes)
     Tx {
-        /// Chain (ethereum, arbitrum, solana, bitcoin, cosmos, tron, or CAIP-2 ID)
+        /// Chain (ethereum, arbitrum, solana, stellar, bitcoin, cosmos, tron, or CAIP-2 ID)
         #[arg(long)]
         chain: String,
         /// Wallet name or ID (uses stored encrypted mnemonic)
@@ -180,7 +201,7 @@ enum SignCommands {
     },
     /// Sign and broadcast a transaction
     SendTx {
-        /// Chain (ethereum, arbitrum, solana, bitcoin, cosmos, tron, or CAIP-2 ID)
+        /// Chain (ethereum, arbitrum, solana, stellar, bitcoin, cosmos, tron, or CAIP-2 ID)
         #[arg(long)]
         chain: String,
         /// Wallet name or ID (uses stored encrypted mnemonic)
@@ -211,7 +232,7 @@ enum MnemonicCommands {
     },
     /// Derive an address from a mnemonic (reads from OWS_MNEMONIC env or stdin)
     Derive {
-        /// Chain (ethereum, arbitrum, solana, bitcoin, cosmos, tron, or CAIP-2 ID). If omitted, derives all chains.
+        /// Chain (ethereum, arbitrum, solana, stellar, bitcoin, cosmos, tron, or CAIP-2 ID). If omitted, derives all chains.
         #[arg(long)]
         chain: Option<String>,
         /// Account index
@@ -421,6 +442,14 @@ fn run(cli: Cli) -> Result<(), CliError> {
             WalletCommands::Info => commands::info::run(),
         },
         Commands::Sign { subcommand } => match subcommand {
+            SignCommands::AuthEntry {
+                chain,
+                wallet,
+                xdr,
+                encoding,
+                index,
+                json,
+            } => commands::sign_auth_entry::run(&chain, &wallet, &xdr, &encoding, index, json),
             SignCommands::Message {
                 chain,
                 wallet,

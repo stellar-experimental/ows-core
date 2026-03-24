@@ -40,6 +40,7 @@ Output:
 Created wallet 3198bc9c-...
   eip155:1                              0xab16...   m/44'/60'/0'/0/0
   solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp  7Kz9...    m/44'/501'/0'/0'
+  stellar:pubnet                          GABC...    m/44'/148'/0'
   sui:mainnet                              0x...      m/44'/784'/0'/0'/0'
   bip122:000000000019d6689c085ae165831e93   bc1q...    m/84'/0'/0'/0/0
   cosmos:cosmoshub-4                     cosmos1... m/44'/118'/0'/0/0
@@ -76,7 +77,7 @@ OWS_ED25519_KEY="9d61b19d..." \
 | `OWS_SECP256K1_KEY` | Explicit secp256k1 private key via environment variable |
 | `OWS_ED25519_KEY` | Explicit Ed25519 private key via environment variable |
 
-Private key imports generate all 8 chain accounts: the provided key is used for its curve's chains, and a random key is generated for the other curve. Use `OWS_SECP256K1_KEY` and `OWS_ED25519_KEY` together to supply both keys explicitly.
+Private key imports generate all 9 auto-derived chain accounts: the provided key is used for its curve's chains, and a random key is generated for the other curve. Use `OWS_SECP256K1_KEY` and `OWS_ED25519_KEY` together to supply both keys explicitly.
 
 ### `ows wallet export`
 
@@ -269,6 +270,20 @@ Sign a raw transaction (hex-encoded bytes).
 ```bash
 ows sign tx --wallet "my-wallet" --chain evm --tx "02f8..."
 ```
+
+### `ows sign auth-entry`
+
+Sign a serialized Stellar auth-entry preimage XDR payload for OZ smart-account flows.
+
+```bash
+ows sign auth-entry \
+  --wallet "my-wallet" \
+  --chain stellar \
+  --xdr "AAAA..." \
+  --encoding base64
+```
+
+This command returns the Ed25519 signature for the preimage along with the signer `G...` address when `--json` is used. `ows sign send-tx` remains unsupported for Stellar smart-wallet flows in this draft implementation.
 
 | Flag | Description |
 |------|-------------|

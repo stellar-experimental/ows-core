@@ -68,6 +68,14 @@ mod integration_tests {
     }
 
     #[test]
+    fn test_full_pipeline_stellar() {
+        let mnemonic = Mnemonic::from_phrase(ABANDON_PHRASE).unwrap();
+        let address = derive_address_for_chain(&mnemonic, ChainType::Stellar);
+        assert!(address.starts_with('G'));
+        assert_eq!(address.len(), 56);
+    }
+
+    #[test]
     fn test_full_pipeline_bitcoin() {
         let mnemonic = Mnemonic::from_phrase(ABANDON_PHRASE).unwrap();
         let address = derive_address_for_chain(&mnemonic, ChainType::Bitcoin);
@@ -159,6 +167,7 @@ mod integration_tests {
 
         let evm_addr = derive_address_for_chain(&mnemonic, ChainType::Evm);
         let sol_addr = derive_address_for_chain(&mnemonic, ChainType::Solana);
+        let stellar_addr = derive_address_for_chain(&mnemonic, ChainType::Stellar);
         let btc_addr = derive_address_for_chain(&mnemonic, ChainType::Bitcoin);
         let cosmos_addr = derive_address_for_chain(&mnemonic, ChainType::Cosmos);
         let tron_addr = derive_address_for_chain(&mnemonic, ChainType::Tron);
@@ -170,6 +179,7 @@ mod integration_tests {
         let addrs = [
             &evm_addr,
             &sol_addr,
+            &stellar_addr,
             &btc_addr,
             &cosmos_addr,
             &tron_addr,
@@ -221,7 +231,7 @@ mod integration_tests {
     fn test_sign_roundtrip_ed25519_chains() {
         let mnemonic = Mnemonic::from_phrase(ABANDON_PHRASE).unwrap();
 
-        for chain in [ChainType::Solana, ChainType::Ton] {
+        for chain in [ChainType::Solana, ChainType::Stellar, ChainType::Ton] {
             let signer = signer_for_chain(chain);
             let path = signer.default_derivation_path(0);
             let key =
@@ -239,6 +249,7 @@ mod integration_tests {
         for chain in [
             ChainType::Evm,
             ChainType::Solana,
+            ChainType::Stellar,
             ChainType::Bitcoin,
             ChainType::Cosmos,
             ChainType::Tron,

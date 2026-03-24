@@ -60,6 +60,14 @@ All functions return Python dicts. Wallet functions return:
     "recovery_id": 0,                 # EVM/Tron only (None for others)
 }
 
+# StellarAuthEntryResult
+{
+    "address": "G...",                # Stellar signer address
+    "public_key": "ab12...",          # 32-byte public key as hex
+    "payload_hash": "cd34...",        # SHA-256(preimage_xdr) as hex
+    "signature": "ef56...",           # 64-byte Ed25519 signature as hex
+}
+
 # SendResult
 {
     "tx_hash": "0xabc...",
@@ -92,7 +100,7 @@ sol_addr = derive_address(mnemonic, "solana")
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
 | `mnemonic` | `str` | &mdash; | BIP-39 mnemonic phrase |
-| `chain` | `str` | &mdash; | `"evm"`, `"solana"`, `"sui"`, `"bitcoin"`, `"cosmos"`, `"tron"`, `"ton"`, `"spark"`, `"filecoin"` |
+| `chain` | `str` | &mdash; | `"evm"`, `"solana"`, `"stellar"`, `"sui"`, `"bitcoin"`, `"cosmos"`, `"tron"`, `"ton"`, `"spark"`, `"filecoin"` |
 | `index` | `int` | `0` | Account index in derivation path |
 
 ### Wallet Management
@@ -162,7 +170,7 @@ keys = json.loads(export_wallet("pk-wallet"))
 
 #### `import_wallet_mnemonic(name, mnemonic, passphrase=None, index=None, vault_path=None)`
 
-Import a wallet from a BIP-39 mnemonic. Derives all 8 chain accounts via HD paths.
+Import a wallet from a BIP-39 mnemonic. Derives all 9 auto-derived chain accounts via HD paths.
 
 ```python
 wallet = import_wallet_mnemonic("imported", "goose puzzle decorate ...")
@@ -170,22 +178,22 @@ wallet = import_wallet_mnemonic("imported", "goose puzzle decorate ...")
 
 #### `import_wallet_private_key(name, private_key_hex, chain=None, passphrase=None, vault_path=None, secp256k1_key=None, ed25519_key=None)`
 
-Import a wallet from a hex-encoded private key. All 8 chains are supported: the provided key is used for its curve's chains, and a random key is generated for the other curve.
+Import a wallet from a hex-encoded private key. All 9 auto-derived chains are supported: the provided key is used for its curve's chains, and a random key is generated for the other curve.
 
 The optional `chain` parameter specifies which chain the key originates from to determine the curve. Defaults to `"evm"` (secp256k1).
 
 Alternatively, provide explicit keys for each curve via `secp256k1_key` and `ed25519_key`. When both are given, `private_key_hex` and `chain` are ignored.
 
 ```python
-# Import an EVM private key — generates a random Ed25519 key for Solana/Sui/TON
+# Import an EVM private key — generates a random Ed25519 key for Solana/Stellar/Sui/TON
 wallet = import_wallet_private_key("from-evm", "4c0883a691...")
-print(len(wallet["accounts"]))  # => 8
+print(len(wallet["accounts"]))  # => 9
 
-# Import a Solana private key — generates a random secp256k1 key for EVM/BTC/etc.
+# Import a Solana or Stellar private key — generates a random secp256k1 key for EVM/BTC/etc.
 wallet = import_wallet_private_key(
     "from-solana", "9d61b19d...", chain="solana"
 )
-print(len(wallet["accounts"]))  # => 8
+print(len(wallet["accounts"]))  # => 9
 
 # Import explicit keys for both curves
 wallet = import_wallet_private_key(
@@ -193,14 +201,14 @@ wallet = import_wallet_private_key(
     secp256k1_key="4c0883a691...",
     ed25519_key="9d61b19d..."
 )
-print(len(wallet["accounts"]))  # => 8
+print(len(wallet["accounts"]))  # => 9
 ```
 
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
 | `name` | `str` | &mdash; | Wallet name |
 | `private_key_hex` | `str` | &mdash; | Hex-encoded private key. Ignored when both curve keys are provided. |
-| `chain` | `str` | `"evm"` | Source chain: `"evm"`, `"bitcoin"`, `"cosmos"`, `"tron"`, `"filecoin"` (secp256k1) or `"solana"`, `"sui"`, `"ton"` (Ed25519) |
+| `chain` | `str` | `"evm"` | Source chain: `"evm"`, `"bitcoin"`, `"cosmos"`, `"tron"`, `"filecoin"` (secp256k1) or `"solana"`, `"stellar"`, `"sui"`, `"ton"` (Ed25519) |
 | `passphrase` | `str` | `None` | Encryption passphrase |
 | `vault_path` | `str` | `None` | Custom vault directory |
 | `secp256k1_key` | `str` | `None` | Explicit secp256k1 private key (hex) |
@@ -217,6 +225,24 @@ result = sign_message("agent-treasury", "evm", "hello world")
 print(result["signature"])   # hex string
 print(result["recovery_id"]) # 0 or 1
 ```
+
+#### `sign_auth_entry(wallet, chain, xdr, passphrase=None, encoding=None, index=None, vault_path=None)`
+
+Sign a serialized Stellar auth-entry preimage XDR payload for OZ smart-account flows.
+
+```python
+import base64
+
+result = sign_auth_entry(
+    "agent-treasury",
+    "stellar",
+    base64.b64encode(preimage_bytes).decode(),
+)
+print(result["address"])
+print(result["signature"])
+```
+
+Use `encoding="base64"` by default, or `encoding="hex"` when you already have hex-encoded XDR bytes. `sign_and_send` is not supported for Stellar smart-wallet flows in this draft implementation.
 
 #### `sign_typed_data(wallet, chain, typed_data_json, passphrase=None, index=None, vault_path=None)`
 

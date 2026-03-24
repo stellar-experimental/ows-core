@@ -53,6 +53,15 @@ pub struct SignResult {
     pub recovery_id: Option<u32>,
 }
 
+/// Result from signing a serialized Stellar auth-entry preimage XDR payload.
+#[napi(object)]
+pub struct StellarAuthEntryResult {
+    pub address: String,
+    pub public_key: String,
+    pub payload_hash: String,
+    pub signature: String,
+}
+
 /// Result from a sign-and-send operation.
 #[napi(object)]
 pub struct SendResult {
@@ -240,6 +249,35 @@ pub fn sign_message(
     .map(|r| SignResult {
         signature: r.signature,
         recovery_id: r.recovery_id.map(|v| v as u32),
+    })
+    .map_err(map_err)
+}
+
+/// Sign a serialized Stellar auth-entry preimage XDR payload.
+#[napi]
+pub fn sign_auth_entry(
+    wallet: String,
+    chain: String,
+    xdr: String,
+    passphrase: Option<String>,
+    encoding: Option<String>,
+    index: Option<u32>,
+    vault_path_opt: Option<String>,
+) -> Result<StellarAuthEntryResult> {
+    ows_lib::sign_auth_entry(
+        &wallet,
+        &chain,
+        &xdr,
+        passphrase.as_deref(),
+        encoding.as_deref(),
+        index,
+        vault_path(vault_path_opt).as_deref(),
+    )
+    .map(|r| StellarAuthEntryResult {
+        address: r.address,
+        public_key: r.public_key,
+        payload_hash: r.payload_hash,
+        signature: r.signature,
     })
     .map_err(map_err)
 }

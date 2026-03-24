@@ -24,6 +24,15 @@ pub struct SignResult {
     pub recovery_id: Option<u8>,
 }
 
+/// Result from signing a serialized Stellar auth-entry preimage XDR payload.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StellarAuthEntryResult {
+    pub address: String,
+    pub public_key: String,
+    pub payload_hash: String,
+    pub signature: String,
+}
+
 /// Result from a sign-and-send operation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SendResult {

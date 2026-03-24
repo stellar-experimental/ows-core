@@ -55,6 +55,13 @@ interface SignResult {
   recoveryId?: number;    // EVM/Tron recovery ID (v value)
 }
 
+interface StellarAuthEntryResult {
+  address: string;        // Stellar signer G-address
+  publicKey: string;      // 32-byte public key as hex
+  payloadHash: string;    // SHA-256(preimage_xdr) as hex
+  signature: string;      // Ed25519 signature as hex
+}
+
 interface SendResult {
   txHash: string;         // Transaction hash
 }
@@ -92,7 +99,7 @@ const solAddr = deriveAddress(mnemonic, "solana");
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
 | `mnemonic` | `string` | &mdash; | BIP-39 mnemonic phrase |
-| `chain` | `string` | &mdash; | `"evm"`, `"solana"`, `"sui"`, `"bitcoin"`, `"cosmos"`, `"tron"`, `"filecoin"` |
+| `chain` | `string` | &mdash; | `"evm"`, `"solana"`, `"stellar"`, `"sui"`, `"bitcoin"`, `"cosmos"`, `"tron"`, `"filecoin"` |
 | `index` | `number` | `0` | Account index in derivation path |
 
 **Returns:** `string`
@@ -188,7 +195,7 @@ const keys = JSON.parse(keysJson);
 
 #### `importWalletMnemonic(name, mnemonic, passphrase?, index?, vaultPath?)`
 
-Import a wallet from a BIP-39 mnemonic. Derives all 8 chain accounts via HD paths.
+Import a wallet from a BIP-39 mnemonic. Derives all 9 auto-derived chain accounts via HD paths.
 
 ```javascript
 const wallet = importWalletMnemonic("imported", "goose puzzle decorate ...");
@@ -198,22 +205,22 @@ const wallet = importWalletMnemonic("imported", "goose puzzle decorate ...");
 
 #### `importWalletPrivateKey(name, privateKeyHex, passphrase?, vaultPath?, chain?, secp256k1Key?, ed25519Key?)`
 
-Import a wallet from a hex-encoded private key. All 8 chains are supported: the provided key is used for its curve's chains, and a random key is generated for the other curve.
+Import a wallet from a hex-encoded private key. All 9 auto-derived chains are supported: the provided key is used for its curve's chains, and a random key is generated for the other curve.
 
 The optional `chain` parameter specifies which chain the key originates from to determine the curve. Defaults to `"evm"` (secp256k1).
 
 Alternatively, provide explicit keys for each curve via `secp256k1Key` and `ed25519Key`. When both are given, `privateKeyHex` and `chain` are ignored.
 
 ```javascript
-// Import an EVM private key — generates a random Ed25519 key for Solana/Sui/TON
+// Import an EVM private key — generates a random Ed25519 key for Solana/Stellar/Sui/TON
 const wallet = importWalletPrivateKey("from-evm", "4c0883a691...");
-console.log(wallet.accounts.length); // => 8
+console.log(wallet.accounts.length); // => 9
 
-// Import a Solana private key — generates a random secp256k1 key for EVM/BTC/etc.
+// Import a Solana or Stellar private key — generates a random secp256k1 key for EVM/BTC/etc.
 const wallet2 = importWalletPrivateKey(
   "from-solana", "9d61b19d...", undefined, undefined, "solana"
 );
-console.log(wallet2.accounts.length); // => 8
+console.log(wallet2.accounts.length); // => 9
 
 // Import explicit keys for both curves
 const wallet3 = importWalletPrivateKey(
@@ -221,7 +228,7 @@ const wallet3 = importWalletPrivateKey(
   "4c0883a691...",  // secp256k1 key
   "9d61b19d..."     // ed25519 key
 );
-console.log(wallet3.accounts.length); // => 8
+console.log(wallet3.accounts.length); // => 9
 ```
 
 | Param | Type | Default | Description |
@@ -230,7 +237,7 @@ console.log(wallet3.accounts.length); // => 8
 | `privateKeyHex` | `string` | &mdash; | Hex-encoded private key (with or without `0x` prefix). Ignored when both curve keys are provided. |
 | `passphrase` | `string` | `undefined` | Encryption passphrase |
 | `vaultPath` | `string` | `~/.ows` | Custom vault directory root |
-| `chain` | `string` | `"evm"` | Source chain: `"evm"`, `"bitcoin"`, `"cosmos"`, `"tron"`, `"filecoin"` (secp256k1) or `"solana"`, `"sui"`, `"ton"` (Ed25519) |
+| `chain` | `string` | `"evm"` | Source chain: `"evm"`, `"bitcoin"`, `"cosmos"`, `"tron"`, `"filecoin"` (secp256k1) or `"solana"`, `"stellar"`, `"sui"`, `"ton"` (Ed25519) |
 | `secp256k1Key` | `string` | `undefined` | Explicit secp256k1 private key (hex). Overrides random generation for secp256k1 chains. |
 | `ed25519Key` | `string` | `undefined` | Explicit Ed25519 private key (hex). Overrides random generation for Ed25519 chains. |
 
@@ -257,6 +264,22 @@ console.log(result.recoveryId); // 0 or 1
 | `encoding` | `string` | `"utf8"` | `"utf8"` or `"hex"` |
 | `index` | `number` | `0` | Account index |
 | `vaultPath` | `string` | `~/.ows` | Custom vault directory root |
+
+#### `signAuthEntry(wallet, chain, xdr, passphrase?, encoding?, index?, vaultPath?)`
+
+Sign a serialized Stellar auth-entry preimage XDR payload for OZ smart-account flows.
+
+```javascript
+const result = signAuthEntry(
+  "agent-treasury",
+  "stellar",
+  Buffer.from(preimageBytes).toString("base64"),
+);
+console.log(result.address);
+console.log(result.signature);
+```
+
+Use `"base64"` encoding by default, or `"hex"` when you already have hex-encoded XDR bytes. `signAndSend` is not supported for Stellar smart-wallet flows in this draft implementation.
 
 **Returns:** `SignResult`
 
