@@ -290,7 +290,7 @@ This command returns the Ed25519 signature for the preimage along with the signe
 | Flag | Description |
 |------|-------------|
 | `--wallet <NAME>` | Wallet name or ID |
-| `--chain <CHAIN>` | Chain family |
+| `--chain <CHAIN>` | Chain family or supported alias / CAIP-2 ID |
 | `--xdr <XDR>` | Base64 or hex-encoded auth-entry preimage bytes |
 | `--encoding <ENC>` | `base64` (default) or `hex` |
 | `--index <N>` | Account index |

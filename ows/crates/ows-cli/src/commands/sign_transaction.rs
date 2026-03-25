@@ -40,7 +40,8 @@ pub fn run(
     }
 
     let signer = signer_for_chain(chain.chain_type);
-    let output = signer.sign_transaction(key.expose(), &tx_bytes)?;
+    let signable = signer.extract_signable_bytes(&tx_bytes)?;
+    let output = signer.sign_transaction(key.expose(), signable)?;
 
     print_result(
         &hex::encode(&output.signature),

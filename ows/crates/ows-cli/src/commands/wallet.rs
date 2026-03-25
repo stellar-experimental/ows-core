@@ -9,7 +9,10 @@ fn print_wallet_details(wallet: &ows_lib::WalletInfo) {
     println!("Name:    {}", wallet.name);
     println!("Secured: ✓ (encrypted)");
     for acct in &wallet.accounts {
-        println!("  {} → {}", acct.chain_id, acct.address);
+        let label = ows_core::parse_chain(&acct.chain_id)
+            .map(|c| format!(" ({})", c.name))
+            .unwrap_or_default();
+        println!("  {}{} → {}", acct.chain_id, label, acct.address);
         if !acct.derivation_path.is_empty() {
             println!("    Path: {}", acct.derivation_path);
         }
