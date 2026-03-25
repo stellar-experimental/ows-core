@@ -271,21 +271,21 @@ Sign a raw transaction (hex-encoded bytes).
 ows sign tx --wallet "my-wallet" --chain evm --tx "02f8..."
 ```
 
-Stellar is intentionally excluded in this draft implementation. For Stellar smart-wallet flows, use `ows sign auth-entry` and then submit through an external relayer such as OpenZeppelin Relayer/Channels.
+For Stellar classic transactions, pass a hex-encoded `TransactionEnvelope` XDR blob and a supported Stellar chain such as `stellar:testnet` or `stellar:pubnet`. OWS derives the `TransactionSignaturePayload`, hashes it, and returns the Ed25519 signature for the wallet's `G...` account.
 
 ### `ows sign auth-entry`
 
-Sign a serialized Stellar auth-entry preimage XDR payload for OZ smart-account flows.
+Sign a serialized Stellar auth-entry preimage XDR payload for contract-account authorization flows.
 
 ```bash
 ows sign auth-entry \
   --wallet "my-wallet" \
-  --chain stellar \
+  --chain stellar:testnet \
   --xdr "AAAA..." \
   --encoding base64
 ```
 
-This command returns the Ed25519 signature for the preimage along with the signer `G...` address when `--json` is used. That `G...` address identifies the signer key, not the deployed OZ smart-account `C...` address. `ows sign send-tx` remains unsupported for Stellar smart-wallet flows in this draft implementation.
+This command returns the Ed25519 signature for the preimage along with the signer `G...` address when `--json` is used. That `G...` address identifies the signer key used to authorize the contract-account flow. The auth preimage `network_id` must match the requested chain such as `stellar:testnet` or `stellar:pubnet`. `ows sign send-tx` remains unsupported for Stellar in the current implementation.
 
 | Flag | Description |
 |------|-------------|

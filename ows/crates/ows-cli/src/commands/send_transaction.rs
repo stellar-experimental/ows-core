@@ -42,7 +42,7 @@ pub fn run(
     let chain = parse_chain(chain_str)?;
     if chain.chain_type == ows_core::ChainType::Stellar {
         return Err(CliError::InvalidArgs(
-            "sign_and_send is not yet supported for Stellar smart-wallet flows; use `ows sign auth-entry` and submit via an external relayer".into(),
+            "sign_and_send is not yet supported for Stellar; use `ows sign tx` for classic G-address signatures or `ows sign auth-entry` for Soroban authorization, then broadcast externally".into(),
         ));
     }
     let key = super::resolve_signing_key(wallet_name, chain.chain_type, index)?;

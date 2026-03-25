@@ -28,16 +28,16 @@ pub fn run(
 
     // Owner mode: resolve key directly (existing behavior)
     let chain = parse_chain(chain_str)?;
-    if chain.chain_type == ows_core::ChainType::Stellar {
-        return Err(CliError::InvalidArgs(
-            "generic transaction signing is not supported for Stellar smart-wallet flows; use `ows sign auth-entry` and submit via an external relayer".into(),
-        ));
-    }
     let key = super::resolve_signing_key(wallet_name, chain.chain_type, index)?;
 
     let tx_hex_clean = tx_hex.strip_prefix("0x").unwrap_or(tx_hex);
-    let tx_bytes = hex::decode(tx_hex_clean)
+    let mut tx_bytes = hex::decode(tx_hex_clean)
         .map_err(|e| CliError::InvalidArgs(format!("invalid hex transaction: {e}")))?;
+    if chain.chain_type == ows_core::ChainType::Stellar {
+        tx_bytes = ows_signer::chains::StellarSigner
+            .transaction_signature_payload_xdr(chain.chain_id, &tx_bytes)
+            .map_err(|e| CliError::InvalidArgs(e.to_string()))?;
+    }
 
     let signer = signer_for_chain(chain.chain_type);
     let output = signer.sign_transaction(key.expose(), &tx_bytes)?;

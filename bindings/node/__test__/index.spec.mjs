@@ -1,6 +1,6 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -29,6 +29,18 @@ import {
 
 describe('@open-wallet-standard/core', () => {
   let vaultDir;
+  const stellarFixture = JSON.parse(
+    readFileSync(
+      new URL('../../../testdata/stellar/auth_entry_external_ed25519.json', import.meta.url),
+      'utf8',
+    ),
+  );
+  const stellarTxFixture = JSON.parse(
+    readFileSync(
+      new URL('../../../testdata/stellar/transaction_v1_ed25519.json', import.meta.url),
+      'utf8',
+    ),
+  );
 
   before(() => {
     vaultDir = mkdtempSync(join(tmpdir(), 'ows-node-test-'));
@@ -98,7 +110,6 @@ describe('@open-wallet-standard/core', () => {
     deleteWallet('renamed', vaultDir);
     assert.equal(listWallets(vaultDir).length, 0);
   });
-
   // ---- Mnemonic import round-trip ----
 
   it('imports a mnemonic and produces same addresses', () => {
@@ -221,13 +232,25 @@ describe('@open-wallet-standard/core', () => {
     deleteWallet('tx-signer', vaultDir);
   });
 
-  it('rejects generic Stellar transaction signing', () => {
-    createWallet('stellar-tx', undefined, 12, vaultDir);
-
-    assert.throws(
-      () => signTransaction('stellar-tx', 'stellar', 'deadbeef', undefined, undefined, vaultDir),
-      /generic transaction signing is not supported for Stellar/
+  it('signs classic Stellar transaction envelopes', () => {
+    importWalletPrivateKey(
+      'stellar-tx',
+      stellarTxFixture.private_key_hex,
+      undefined,
+      vaultDir,
+      'stellar',
     );
+
+    const result = signTransaction(
+      'stellar-tx',
+      stellarTxFixture.chain_id,
+      stellarTxFixture.envelope_xdr_hex,
+      undefined,
+      undefined,
+      vaultDir,
+    );
+
+    assert.equal(result.signature, stellarTxFixture.signature_hex);
 
     deleteWallet('stellar-tx', vaultDir);
   });
@@ -245,24 +268,55 @@ describe('@open-wallet-standard/core', () => {
   });
 
   it('signs Stellar auth-entry preimages', () => {
-    createWallet('stellar-auth', undefined, 12, vaultDir);
+    importWalletPrivateKey(
+      'stellar-auth',
+      stellarFixture.private_key_hex,
+      undefined,
+      vaultDir,
+      'stellar',
+    );
 
     const result = signAuthEntry(
       'stellar-auth',
-      'stellar',
-      Buffer.from('fake-auth-xdr').toString('base64'),
+      'stellar:testnet',
+      stellarFixture.preimage_xdr_base64,
       undefined,
       'base64',
       undefined,
       vaultDir,
     );
 
-    assert.ok(result.address.startsWith('G'));
-    assert.equal(Buffer.from(result.publicKey, 'hex').length, 32);
-    assert.equal(Buffer.from(result.payloadHash, 'hex').length, 32);
-    assert.equal(Buffer.from(result.signature, 'hex').length, 64);
+    assert.equal(result.address, stellarFixture.signer_g_address);
+    assert.equal(result.publicKey, stellarFixture.public_key_hex);
+    assert.equal(result.payloadHash, stellarFixture.payload_hash_hex);
+    assert.equal(result.signature, stellarFixture.signature_hex);
 
     deleteWallet('stellar-auth', vaultDir);
+  });
+
+  it('rejects Stellar auth-entry chain mismatches', () => {
+    importWalletPrivateKey(
+      'stellar-auth-mismatch',
+      stellarFixture.private_key_hex,
+      undefined,
+      vaultDir,
+      'stellar',
+    );
+
+    assert.throws(
+      () => signAuthEntry(
+        'stellar-auth-mismatch',
+        'stellar:pubnet',
+        stellarFixture.preimage_xdr_base64,
+        undefined,
+        'base64',
+        undefined,
+        vaultDir,
+      ),
+      (err) => err.message.includes('network_id does not match requested Stellar chain'),
+    );
+
+    deleteWallet('stellar-auth-mismatch', vaultDir);
   });
 
   // ---- Error handling ----
@@ -327,6 +381,108 @@ describe('@open-wallet-standard/core', () => {
 
     // Cleanup
     deletePolicy('test-base-only', vaultDir);
+    deleteWallet(wallet.id, vaultDir);
+  });
+
+  it('signs Stellar auth-entry preimages with an API token', () => {
+    const wallet = createWallet('stellar-auth-token', undefined, 12, vaultDir);
+
+    createPolicy(JSON.stringify({
+      id: 'test-stellar-auth-only',
+      name: 'Stellar Auth Only',
+      version: 1,
+      created_at: '2026-03-24T00:00:00Z',
+      rules: [
+        { type: 'allowed_chains', chain_ids: ['stellar:pubnet', 'stellar:testnet'] },
+      ],
+      action: 'deny',
+    }), vaultDir);
+
+    const key = createApiKey(
+      'stellar-auth-agent',
+      [wallet.id],
+      ['test-stellar-auth-only'],
+      '',
+      null,
+      vaultDir,
+    );
+
+    const result = signAuthEntry(
+      wallet.id,
+      'stellar:testnet',
+      stellarFixture.preimage_xdr_base64,
+      key.token,
+      'base64',
+      undefined,
+      vaultDir,
+    );
+
+    const ownerResult = signAuthEntry(
+      wallet.id,
+      'stellar:testnet',
+      stellarFixture.preimage_xdr_base64,
+      undefined,
+      'base64',
+      undefined,
+      vaultDir,
+    );
+
+    assert.equal(result.address, ownerResult.address);
+    assert.equal(result.publicKey, ownerResult.publicKey);
+    assert.equal(result.payloadHash, ownerResult.payloadHash);
+    assert.equal(result.signature, ownerResult.signature);
+
+    revokeApiKey(key.id, vaultDir);
+    deletePolicy('test-stellar-auth-only', vaultDir);
+    deleteWallet(wallet.id, vaultDir);
+  });
+
+  it('signs classic Stellar transaction envelopes with an API token', () => {
+    const wallet = createWallet('stellar-tx-token', undefined, 12, vaultDir);
+
+    createPolicy(JSON.stringify({
+      id: 'test-stellar-tx-only',
+      name: 'Stellar Tx Only',
+      version: 1,
+      created_at: '2026-03-25T00:00:00Z',
+      rules: [
+        { type: 'allowed_chains', chain_ids: ['stellar:testnet'] },
+      ],
+      action: 'deny',
+    }), vaultDir);
+
+    const key = createApiKey(
+      'stellar-tx-agent',
+      [wallet.id],
+      ['test-stellar-tx-only'],
+      '',
+      null,
+      vaultDir,
+    );
+
+    const ownerResult = signTransaction(
+      wallet.id,
+      stellarTxFixture.chain_id,
+      stellarTxFixture.envelope_xdr_hex,
+      undefined,
+      undefined,
+      vaultDir,
+    );
+
+    const tokenResult = signTransaction(
+      wallet.id,
+      stellarTxFixture.chain_id,
+      stellarTxFixture.envelope_xdr_hex,
+      key.token,
+      undefined,
+      vaultDir,
+    );
+
+    assert.equal(tokenResult.signature, ownerResult.signature);
+    assert.equal(tokenResult.recoveryId, ownerResult.recoveryId);
+
+    revokeApiKey(key.id, vaultDir);
+    deletePolicy('test-stellar-tx-only', vaultDir);
     deleteWallet(wallet.id, vaultDir);
   });
 

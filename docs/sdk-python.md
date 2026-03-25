@@ -105,7 +105,7 @@ sol_addr = derive_address(mnemonic, "solana")
 
 ### Wallet Management
 
-#### `create_wallet(name, passphrase=None, words=12, vault_path=None)`
+#### `create_wallet(name, passphrase=None, words=12, vault_path_opt=None)`
 
 Create a new wallet. Derives addresses for the current auto-derived chain set.
 
@@ -115,7 +115,7 @@ for acct in wallet["accounts"]:
     print(f"{acct['chain_id']}: {acct['address']}")
 ```
 
-#### `list_wallets(vault_path=None)`
+#### `list_wallets(vault_path_opt=None)`
 
 List all wallets in the vault.
 
@@ -124,7 +124,7 @@ wallets = list_wallets()
 print(len(wallets))
 ```
 
-#### `get_wallet(name_or_id, vault_path=None)`
+#### `get_wallet(name_or_id, vault_path_opt=None)`
 
 Look up a wallet by name or UUID.
 
@@ -132,7 +132,7 @@ Look up a wallet by name or UUID.
 wallet = get_wallet("agent-treasury")
 ```
 
-#### `delete_wallet(name_or_id, vault_path=None)`
+#### `delete_wallet(name_or_id, vault_path_opt=None)`
 
 Delete a wallet from the vault.
 
@@ -140,7 +140,7 @@ Delete a wallet from the vault.
 delete_wallet("agent-treasury")
 ```
 
-#### `rename_wallet(name_or_id, new_name, vault_path=None)`
+#### `rename_wallet(name_or_id, new_name, vault_path_opt=None)`
 
 Rename a wallet.
 
@@ -148,7 +148,7 @@ Rename a wallet.
 rename_wallet("old-name", "new-name")
 ```
 
-#### `export_wallet(name_or_id, passphrase=None, vault_path=None)`
+#### `export_wallet(name_or_id, passphrase=None, vault_path_opt=None)`
 
 Export a wallet's secret.
 
@@ -168,7 +168,7 @@ keys = json.loads(export_wallet("pk-wallet"))
 
 ### Import
 
-#### `import_wallet_mnemonic(name, mnemonic, passphrase=None, index=None, vault_path=None)`
+#### `import_wallet_mnemonic(name, mnemonic, passphrase=None, index=None, vault_path_opt=None)`
 
 Import a wallet from a BIP-39 mnemonic. Derives all 9 auto-derived chain accounts via HD paths.
 
@@ -176,7 +176,7 @@ Import a wallet from a BIP-39 mnemonic. Derives all 9 auto-derived chain account
 wallet = import_wallet_mnemonic("imported", "goose puzzle decorate ...")
 ```
 
-#### `import_wallet_private_key(name, private_key_hex, chain=None, passphrase=None, vault_path=None, secp256k1_key=None, ed25519_key=None)`
+#### `import_wallet_private_key(name, private_key_hex, chain=None, passphrase=None, vault_path_opt=None, secp256k1_key=None, ed25519_key=None)`
 
 Import a wallet from a hex-encoded private key. All 9 auto-derived chains are supported: the provided key is used for its curve's chains, and a random key is generated for the other curve.
 
@@ -210,13 +210,13 @@ print(len(wallet["accounts"]))  # => 9
 | `private_key_hex` | `str` | &mdash; | Hex-encoded private key. Ignored when both curve keys are provided. |
 | `chain` | `str` | `"evm"` | Source chain: `"evm"`, `"bitcoin"`, `"cosmos"`, `"tron"`, `"filecoin"` (secp256k1) or `"solana"`, `"stellar"`, `"sui"`, `"ton"` (Ed25519) |
 | `passphrase` | `str` | `None` | Encryption passphrase |
-| `vault_path` | `str` | `None` | Custom vault directory |
+| `vault_path_opt` | `str` | `None` | Custom vault directory |
 | `secp256k1_key` | `str` | `None` | Explicit secp256k1 private key (hex) |
 | `ed25519_key` | `str` | `None` | Explicit Ed25519 private key (hex) |
 
 ### Signing
 
-#### `sign_message(wallet, chain, message, passphrase=None, encoding=None, index=None, vault_path=None)`
+#### `sign_message(wallet, chain, message, passphrase=None, encoding=None, index=None, vault_path_opt=None)`
 
 Sign a message with chain-specific formatting.
 
@@ -226,25 +226,25 @@ print(result["signature"])   # hex string
 print(result["recovery_id"]) # 0 or 1
 ```
 
-#### `sign_auth_entry(wallet, chain, xdr, passphrase=None, encoding=None, index=None, vault_path=None)`
+#### `sign_auth_entry(wallet, chain, xdr, passphrase=None, encoding=None, index=None, vault_path_opt=None)`
 
-Sign a serialized Stellar auth-entry preimage XDR payload for OZ smart-account flows.
+Sign a serialized Stellar `HashIdPreimageSorobanAuthorization` XDR payload for contract-account authorization flows.
 
 ```python
 import base64
 
 result = sign_auth_entry(
     "agent-treasury",
-    "stellar",
+    "stellar:testnet",
     base64.b64encode(preimage_bytes).decode(),
 )
 print(result["address"])
 print(result["signature"])
 ```
 
-Use `encoding="base64"` by default, or `encoding="hex"` when you already have hex-encoded XDR bytes. `sign_and_send` is not supported for Stellar smart-wallet flows in this draft implementation. The returned `address` is the Stellar `G...` signer identity, not the OZ smart-account `C...` address.
+Use `encoding="base64"` by default, or `encoding="hex"` when you already have hex-encoded XDR bytes. The payload must be valid Soroban auth-preimage XDR, and its embedded `network_id` must match the requested chain such as `stellar:testnet` or `stellar:pubnet`. `sign_and_send` is not supported for Stellar in the current implementation. The returned `address` is the Stellar `G...` signer identity used to authorize the contract-account flow.
 
-#### `sign_typed_data(wallet, chain, typed_data_json, passphrase=None, index=None, vault_path=None)`
+#### `sign_typed_data(wallet, chain, typed_data_json, passphrase=None, index=None, vault_path_opt=None)`
 
 Sign EIP-712 typed structured data (EVM only).
 
@@ -274,18 +274,18 @@ print(result["signature"])   # hex string
 print(result["recovery_id"]) # 27 or 28
 ```
 
-#### `sign_transaction(wallet, chain, tx_hex, passphrase=None, index=None, vault_path=None)`
+#### `sign_transaction(wallet, chain, tx_hex, passphrase=None, index=None, vault_path_opt=None)`
 
-Sign a raw transaction (hex-encoded bytes).
+Sign a raw transaction.
 
 ```python
 result = sign_transaction("agent-treasury", "evm", "02f8...")
 print(result["signature"])
 ```
 
-Stellar is intentionally excluded in this draft implementation. For Stellar smart-wallet flows, use `sign_auth_entry(...)` and then submit through an external relayer such as OpenZeppelin Relayer/Channels.
+For Stellar classic transactions, pass a hex-encoded `TransactionEnvelope` XDR blob and a supported Stellar chain such as `stellar:testnet` or `stellar:pubnet`. OWS derives the `TransactionSignaturePayload`, hashes it, and returns the Ed25519 signature for the wallet's `G...` account.
 
-#### `sign_and_send(wallet, chain, tx_hex, passphrase=None, index=None, rpc_url=None, vault_path=None)`
+#### `sign_and_send(wallet, chain, tx_hex, passphrase=None, index=None, rpc_url=None, vault_path_opt=None)`
 
 Sign and broadcast a transaction.
 
@@ -296,6 +296,8 @@ result = sign_and_send(
 )
 print(result["tx_hash"])
 ```
+
+Stellar is intentionally excluded from this send path in the current implementation. Use `sign_transaction(...)` for classic `G...` signing or `sign_auth_entry(...)` for Soroban authorization, then broadcast externally.
 
 ## Policy And API Key Management
 
@@ -315,17 +317,17 @@ from ows import (
 
 | Function | Description |
 |----------|-------------|
-| `create_policy(policy_json, vault_path=None)` | Register a policy from a JSON string |
-| `list_policies(vault_path=None)` | List all registered policies |
-| `get_policy(id, vault_path=None)` | Load a single policy by ID |
-| `delete_policy(id, vault_path=None)` | Delete a policy |
-| `create_api_key(name, wallet_ids, policy_ids, passphrase, expires_at=None, vault_path=None)` | Create an API key and return `{"token", "id", "name"}` |
-| `list_api_keys(vault_path=None)` | List API keys (metadata only, no tokens) |
-| `revoke_api_key(id, vault_path=None)` | Delete an API key file |
+| `create_policy(policy_json, vault_path_opt=None)` | Register a policy from a JSON string |
+| `list_policies(vault_path_opt=None)` | List all registered policies |
+| `get_policy(id, vault_path_opt=None)` | Load a single policy by ID |
+| `delete_policy(id, vault_path_opt=None)` | Delete a policy |
+| `create_api_key(name, wallet_ids, policy_ids, passphrase, expires_at=None, vault_path_opt=None)` | Create an API key and return `{"token", "id", "name"}` |
+| `list_api_keys(vault_path_opt=None)` | List API keys (metadata only, no tokens) |
+| `revoke_api_key(id, vault_path_opt=None)` | Delete an API key file |
 
 ## Custom Vault Path
 
-Every function accepts an optional `vault_path` parameter for testing or isolation:
+Every function accepts an optional `vault_path_opt` parameter for testing or isolation:
 
 ```python
 import tempfile
@@ -333,7 +335,7 @@ import shutil
 
 vault = tempfile.mkdtemp(prefix="ows-test-")
 try:
-    wallet = create_wallet("test", vault_path=vault)
+    wallet = create_wallet("test", vault_path_opt=vault)
     # ... use wallet ...
 finally:
     shutil.rmtree(vault)

@@ -99,7 +99,7 @@ const solAddr = deriveAddress(mnemonic, "solana");
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
 | `mnemonic` | `string` | &mdash; | BIP-39 mnemonic phrase |
-| `chain` | `string` | &mdash; | `"evm"`, `"solana"`, `"stellar"`, `"sui"`, `"bitcoin"`, `"cosmos"`, `"tron"`, `"filecoin"` |
+| `chain` | `string` | &mdash; | `"evm"`, `"solana"`, `"stellar"`, `"sui"`, `"bitcoin"`, `"cosmos"`, `"tron"`, `"ton"`, `"spark"`, `"filecoin"` |
 | `index` | `number` | `0` | Account index in derivation path |
 
 **Returns:** `string`
@@ -268,19 +268,19 @@ console.log(result.recoveryId); // 0 or 1
 
 #### `signAuthEntry(wallet, chain, xdr, passphrase?, encoding?, index?, vaultPath?)`
 
-Sign a serialized Stellar auth-entry preimage XDR payload for OZ smart-account flows.
+Sign a serialized Stellar `HashIdPreimageSorobanAuthorization` XDR payload for contract-account authorization flows.
 
 ```javascript
 const result = signAuthEntry(
   "agent-treasury",
-  "stellar",
+  "stellar:testnet",
   Buffer.from(preimageBytes).toString("base64"),
 );
 console.log(result.address);
 console.log(result.signature);
 ```
 
-Use `"base64"` encoding by default, or `"hex"` when you already have hex-encoded XDR bytes. `signAndSend` is not supported for Stellar smart-wallet flows in this draft implementation. The returned `address` is the Stellar `G...` signer identity, not the OZ smart-account `C...` address.
+Use `"base64"` encoding by default, or `"hex"` when you already have hex-encoded XDR bytes. The payload must be valid Soroban auth-preimage XDR, and its embedded `network_id` must match the requested chain such as `stellar:testnet` or `stellar:pubnet`. `signAndSend` is not supported for Stellar in the current implementation. The returned `address` is the Stellar `G...` signer identity used to authorize the contract-account flow.
 
 **Returns:** `StellarAuthEntryResult`
 
@@ -325,14 +325,14 @@ console.log(result.recoveryId); // 27 or 28
 
 #### `signTransaction(wallet, chain, txHex, passphrase?, index?, vaultPath?)`
 
-Sign a raw transaction (hex-encoded bytes).
+Sign a raw transaction.
 
 ```javascript
 const result = signTransaction("agent-treasury", "evm", "02f8...");
 console.log(result.signature);
 ```
 
-Stellar is intentionally excluded in this draft implementation. For Stellar smart-wallet flows, use `signAuthEntry(...)` and then submit through an external relayer such as OpenZeppelin Relayer/Channels.
+For Stellar classic transactions, pass a hex-encoded `TransactionEnvelope` XDR blob and a supported Stellar chain such as `stellar:testnet` or `stellar:pubnet`. OWS derives the `TransactionSignaturePayload`, hashes it, and returns the Ed25519 signature for the wallet's `G...` account.
 
 **Returns:** `SignResult`
 
@@ -349,6 +349,8 @@ console.log(result.txHash);
 ```
 
 **Returns:** `SendResult`
+
+Stellar is intentionally excluded from this send path in the current implementation. Use `signTransaction(...)` for classic `G...` signing or `signAuthEntry(...)` for Soroban authorization, then broadcast externally.
 
 ### Policy Management
 

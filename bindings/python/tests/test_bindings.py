@@ -1,9 +1,21 @@
 """Tests for ows Python bindings."""
 
 import tempfile
-import base64
+import json
+from pathlib import Path
 import pytest
 import ows
+
+STELLAR_FIXTURE = json.loads(
+    Path(__file__).resolve().parents[3]
+    .joinpath("testdata/stellar/auth_entry_external_ed25519.json")
+    .read_text()
+)
+STELLAR_TX_FIXTURE = json.loads(
+    Path(__file__).resolve().parents[3]
+    .joinpath("testdata/stellar/transaction_v1_ed25519.json")
+    .read_text()
+)
 
 
 @pytest.fixture
@@ -58,7 +70,6 @@ def test_create_and_list_wallets(vault_dir):
     wallets = ows.list_wallets(vault_path_opt=vault_dir)
     assert len(wallets) == 1
     assert wallets[0]["id"] == wallet["id"]
-
 
 def test_get_wallet(vault_dir):
     wallet = ows.create_wallet("lookup", vault_path_opt=vault_dir)
@@ -118,13 +129,22 @@ def test_sign_transaction(vault_dir):
     assert result["recovery_id"] is not None
 
 
-def test_sign_transaction_stellar_unsupported(vault_dir):
-    ows.create_wallet("stellar-signer", vault_path_opt=vault_dir)
+def test_sign_transaction_stellar(vault_dir):
+    ows.import_wallet_private_key(
+        "stellar-signer",
+        STELLAR_TX_FIXTURE["private_key_hex"],
+        chain="stellar",
+        vault_path_opt=vault_dir,
+    )
 
-    with pytest.raises(Exception, match="generic transaction signing is not supported for Stellar"):
-        ows.sign_transaction(
-            "stellar-signer", "stellar", "deadbeef", vault_path_opt=vault_dir
-        )
+    result = ows.sign_transaction(
+        "stellar-signer",
+        STELLAR_TX_FIXTURE["chain_id"],
+        STELLAR_TX_FIXTURE["envelope_xdr_hex"],
+        vault_path_opt=vault_dir,
+    )
+    assert result["signature"] == STELLAR_TX_FIXTURE["signature_hex"]
+    assert result["recovery_id"] is None
 
 
 def test_sign_message(vault_dir):
@@ -137,15 +157,143 @@ def test_sign_message(vault_dir):
 
 
 def test_sign_auth_entry(vault_dir):
-    ows.create_wallet("stellar-auth", vault_path_opt=vault_dir)
+    ows.import_wallet_private_key(
+        "stellar-auth",
+        STELLAR_FIXTURE["private_key_hex"],
+        chain="stellar",
+        vault_path_opt=vault_dir,
+    )
 
     result = ows.sign_auth_entry(
         "stellar-auth",
-        "stellar",
-        base64.b64encode(b"fake-auth-xdr").decode(),
+        "stellar:testnet",
+        STELLAR_FIXTURE["preimage_xdr_base64"],
         vault_path_opt=vault_dir,
     )
-    assert result["address"].startswith("G")
-    assert len(bytes.fromhex(result["public_key"])) == 32
-    assert len(bytes.fromhex(result["payload_hash"])) == 32
-    assert len(bytes.fromhex(result["signature"])) == 64
+    assert result["address"] == STELLAR_FIXTURE["signer_g_address"]
+    assert result["public_key"] == STELLAR_FIXTURE["public_key_hex"]
+    assert result["payload_hash"] == STELLAR_FIXTURE["payload_hash_hex"]
+    assert result["signature"] == STELLAR_FIXTURE["signature_hex"]
+
+
+def test_sign_auth_entry_rejects_chain_mismatch(vault_dir):
+    ows.import_wallet_private_key(
+        "stellar-auth-mismatch",
+        STELLAR_FIXTURE["private_key_hex"],
+        chain="stellar",
+        vault_path_opt=vault_dir,
+    )
+
+    with pytest.raises(Exception, match="network_id does not match requested Stellar chain"):
+        ows.sign_auth_entry(
+            "stellar-auth-mismatch",
+            "stellar:pubnet",
+            STELLAR_FIXTURE["preimage_xdr_base64"],
+            vault_path_opt=vault_dir,
+        )
+
+
+def test_sign_auth_entry_with_api_key(vault_dir):
+    wallet = ows.create_wallet("stellar-auth-token", vault_path_opt=vault_dir)
+
+    ows.create_policy(
+        json.dumps(
+            {
+                "id": "test-stellar-auth-only",
+                "name": "Stellar Auth Only",
+                "version": 1,
+                "created_at": "2026-03-24T00:00:00Z",
+                "rules": [
+                    {
+                        "type": "allowed_chains",
+                        "chain_ids": ["stellar:pubnet", "stellar:testnet"],
+                    }
+                ],
+                "action": "deny",
+            }
+        ),
+        vault_path_opt=vault_dir,
+    )
+
+    key = ows.create_api_key(
+        "stellar-auth-agent",
+        [wallet["id"]],
+        ["test-stellar-auth-only"],
+        "",
+        vault_path_opt=vault_dir,
+    )
+
+    result = ows.sign_auth_entry(
+        wallet["id"],
+        "stellar:testnet",
+        STELLAR_FIXTURE["preimage_xdr_base64"],
+        passphrase=key["token"],
+        vault_path_opt=vault_dir,
+    )
+
+    owner_result = ows.sign_auth_entry(
+        wallet["id"],
+        "stellar:testnet",
+        STELLAR_FIXTURE["preimage_xdr_base64"],
+        vault_path_opt=vault_dir,
+    )
+
+    assert result["address"] == owner_result["address"]
+    assert result["public_key"] == owner_result["public_key"]
+    assert result["payload_hash"] == owner_result["payload_hash"]
+    assert result["signature"] == owner_result["signature"]
+
+    ows.revoke_api_key(key["id"], vault_path_opt=vault_dir)
+    ows.delete_policy("test-stellar-auth-only", vault_path_opt=vault_dir)
+
+
+def test_sign_transaction_stellar_with_api_key(vault_dir):
+    wallet = ows.create_wallet("stellar-tx-token", vault_path_opt=vault_dir)
+
+    ows.create_policy(
+        json.dumps(
+            {
+                "id": "test-stellar-tx-only",
+                "name": "Stellar Tx Only",
+                "version": 1,
+                "created_at": "2026-03-25T00:00:00Z",
+                "rules": [
+                    {
+                        "type": "allowed_chains",
+                        "chain_ids": ["stellar:testnet"],
+                    }
+                ],
+                "action": "deny",
+            }
+        ),
+        vault_path_opt=vault_dir,
+    )
+
+    key = ows.create_api_key(
+        "stellar-tx-agent",
+        [wallet["id"]],
+        ["test-stellar-tx-only"],
+        "",
+        vault_path_opt=vault_dir,
+    )
+
+    owner_result = ows.sign_transaction(
+        wallet["id"],
+        STELLAR_TX_FIXTURE["chain_id"],
+        STELLAR_TX_FIXTURE["envelope_xdr_hex"],
+        vault_path_opt=vault_dir,
+    )
+
+    token_result = ows.sign_transaction(
+        wallet["id"],
+        STELLAR_TX_FIXTURE["chain_id"],
+        STELLAR_TX_FIXTURE["envelope_xdr_hex"],
+        passphrase=key["token"],
+        vault_path_opt=vault_dir,
+    )
+
+    assert token_result["signature"] == owner_result["signature"]
+    assert token_result["recovery_id"] == owner_result["recovery_id"]
+
+    ows.revoke_api_key(key["id"], vault_path_opt=vault_dir)
+    ows.delete_policy("test-stellar-tx-only", vault_path_opt=vault_dir)

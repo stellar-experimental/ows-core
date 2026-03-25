@@ -10,6 +10,15 @@ fn map_err(e: ows_lib::OwsLibError) -> PyErr {
     PyRuntimeError::new_err(e.to_string())
 }
 
+fn wallet_info_to_pyobject(py: Python<'_>, wallet: &ows_lib::WalletInfo) -> PyResult<PyObject> {
+    let json_str =
+        serde_json::to_string(wallet).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+    let json_mod = py.import("json")?;
+    json_mod
+        .call_method1("loads", (json_str,))
+        .map(|o| o.unbind())
+}
+
 /// Generate a new BIP-39 mnemonic phrase.
 #[pyfunction]
 #[pyo3(signature = (words=12))]
@@ -40,7 +49,7 @@ fn create_wallet(
         vault_path(vault_path_opt).as_deref(),
     )
     .map_err(map_err)?;
-    Python::with_gil(|py| wallet_info_to_dict(py, &info))
+    Python::with_gil(|py| wallet_info_to_pyobject(py, &info))
 }
 
 /// Import a wallet from a mnemonic phrase (derives addresses for all chains).
@@ -61,7 +70,7 @@ fn import_wallet_mnemonic(
         vault_path(vault_path_opt).as_deref(),
     )
     .map_err(map_err)?;
-    Python::with_gil(|py| wallet_info_to_dict(py, &info))
+    Python::with_gil(|py| wallet_info_to_pyobject(py, &info))
 }
 
 /// Import a wallet from a hex-encoded private key (derives addresses for all chains).
@@ -87,7 +96,7 @@ fn import_wallet_private_key(
         ed25519_key,
     )
     .map_err(map_err)?;
-    Python::with_gil(|py| wallet_info_to_dict(py, &info))
+    Python::with_gil(|py| wallet_info_to_pyobject(py, &info))
 }
 
 /// List all wallets in the vault.
@@ -96,12 +105,12 @@ fn import_wallet_private_key(
 fn list_wallets(vault_path_opt: Option<String>) -> PyResult<PyObject> {
     let wallets = ows_lib::list_wallets(vault_path(vault_path_opt).as_deref()).map_err(map_err)?;
     Python::with_gil(|py| {
-        let list = pyo3::types::PyList::empty(py);
-        for w in &wallets {
-            let dict = wallet_info_to_dict_inner(py, w)?;
-            list.append(dict)?;
-        }
-        Ok(list.unbind().into())
+        let json_str =
+            serde_json::to_string(&wallets).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        let json_mod = py.import("json")?;
+        json_mod
+            .call_method1("loads", (json_str,))
+            .map(|o| o.unbind())
     })
 }
 
@@ -111,7 +120,7 @@ fn list_wallets(vault_path_opt: Option<String>) -> PyResult<PyObject> {
 fn get_wallet(name_or_id: &str, vault_path_opt: Option<String>) -> PyResult<PyObject> {
     let info =
         ows_lib::get_wallet(name_or_id, vault_path(vault_path_opt).as_deref()).map_err(map_err)?;
-    Python::with_gil(|py| wallet_info_to_dict(py, &info))
+    Python::with_gil(|py| wallet_info_to_pyobject(py, &info))
 }
 
 /// Delete a wallet from the vault.
@@ -305,8 +314,8 @@ fn sign_and_send(
 #[pyfunction]
 #[pyo3(signature = (policy_json, vault_path_opt=None))]
 fn create_policy(policy_json: &str, vault_path_opt: Option<String>) -> PyResult<()> {
-    let policy: ows_core::Policy =
-        serde_json::from_str(policy_json).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let policy: ows_core::Policy = serde_json::from_str(policy_json)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
     ows_lib::policy_store::save_policy(&policy, vault_path(vault_path_opt).as_deref())
         .map_err(map_err)
 }
@@ -315,14 +324,15 @@ fn create_policy(policy_json: &str, vault_path_opt: Option<String>) -> PyResult<
 #[pyfunction]
 #[pyo3(signature = (vault_path_opt=None))]
 fn list_policies(vault_path_opt: Option<String>) -> PyResult<PyObject> {
-    let policies =
-        ows_lib::policy_store::list_policies(vault_path(vault_path_opt).as_deref())
-            .map_err(map_err)?;
+    let policies = ows_lib::policy_store::list_policies(vault_path(vault_path_opt).as_deref())
+        .map_err(map_err)?;
     let json_str =
         serde_json::to_string(&policies).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
     Python::with_gil(|py| {
         let json_mod = py.import("json")?;
-        json_mod.call_method1("loads", (json_str,)).map(|o| o.unbind())
+        json_mod
+            .call_method1("loads", (json_str,))
+            .map(|o| o.unbind())
     })
 }
 
@@ -330,14 +340,15 @@ fn list_policies(vault_path_opt: Option<String>) -> PyResult<PyObject> {
 #[pyfunction]
 #[pyo3(signature = (id, vault_path_opt=None))]
 fn get_policy(id: &str, vault_path_opt: Option<String>) -> PyResult<PyObject> {
-    let policy =
-        ows_lib::policy_store::load_policy(id, vault_path(vault_path_opt).as_deref())
-            .map_err(map_err)?;
+    let policy = ows_lib::policy_store::load_policy(id, vault_path(vault_path_opt).as_deref())
+        .map_err(map_err)?;
     let json_str =
         serde_json::to_string(&policy).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
     Python::with_gil(|py| {
         let json_mod = py.import("json")?;
-        json_mod.call_method1("loads", (json_str,)).map(|o| o.unbind())
+        json_mod
+            .call_method1("loads", (json_str,))
+            .map(|o| o.unbind())
     })
 }
 
@@ -345,8 +356,7 @@ fn get_policy(id: &str, vault_path_opt: Option<String>) -> PyResult<PyObject> {
 #[pyfunction]
 #[pyo3(signature = (id, vault_path_opt=None))]
 fn delete_policy(id: &str, vault_path_opt: Option<String>) -> PyResult<()> {
-    ows_lib::policy_store::delete_policy(id, vault_path(vault_path_opt).as_deref())
-        .map_err(map_err)
+    ows_lib::policy_store::delete_policy(id, vault_path(vault_path_opt).as_deref()).map_err(map_err)
 }
 
 // ---------------------------------------------------------------------------
@@ -388,9 +398,8 @@ fn create_api_key(
 #[pyfunction]
 #[pyo3(signature = (vault_path_opt=None))]
 fn list_api_keys(vault_path_opt: Option<String>) -> PyResult<PyObject> {
-    let keys =
-        ows_lib::key_store::list_api_keys(vault_path(vault_path_opt).as_deref())
-            .map_err(map_err)?;
+    let keys = ows_lib::key_store::list_api_keys(vault_path(vault_path_opt).as_deref())
+        .map_err(map_err)?;
     // Strip wallet_secrets from output
     let sanitized: Vec<serde_json::Value> = keys
         .iter()
@@ -400,11 +409,13 @@ fn list_api_keys(vault_path_opt: Option<String>) -> PyResult<PyObject> {
             v
         })
         .collect();
-    let json_str = serde_json::to_string(&sanitized)
-        .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+    let json_str =
+        serde_json::to_string(&sanitized).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
     Python::with_gil(|py| {
         let json_mod = py.import("json")?;
-        json_mod.call_method1("loads", (json_str,)).map(|o| o.unbind())
+        json_mod
+            .call_method1("loads", (json_str,))
+            .map(|o| o.unbind())
     })
 }
 
@@ -412,35 +423,7 @@ fn list_api_keys(vault_path_opt: Option<String>) -> PyResult<PyObject> {
 #[pyfunction]
 #[pyo3(signature = (id, vault_path_opt=None))]
 fn revoke_api_key(id: &str, vault_path_opt: Option<String>) -> PyResult<()> {
-    ows_lib::key_store::delete_api_key(id, vault_path(vault_path_opt).as_deref())
-        .map_err(map_err)
-}
-
-fn wallet_info_to_dict(py: Python<'_>, info: &ows_lib::WalletInfo) -> PyResult<PyObject> {
-    let dict = wallet_info_to_dict_inner(py, info)?;
-    Ok(dict.unbind().into())
-}
-
-fn wallet_info_to_dict_inner<'py>(
-    py: Python<'py>,
-    info: &ows_lib::WalletInfo,
-) -> PyResult<pyo3::Bound<'py, pyo3::types::PyDict>> {
-    let dict = pyo3::types::PyDict::new(py);
-    dict.set_item("id", &info.id)?;
-    dict.set_item("name", &info.name)?;
-
-    let accounts_list = pyo3::types::PyList::empty(py);
-    for acct in &info.accounts {
-        let acct_dict = pyo3::types::PyDict::new(py);
-        acct_dict.set_item("chain_id", &acct.chain_id)?;
-        acct_dict.set_item("address", &acct.address)?;
-        acct_dict.set_item("derivation_path", &acct.derivation_path)?;
-        accounts_list.append(acct_dict)?;
-    }
-    dict.set_item("accounts", accounts_list)?;
-
-    dict.set_item("created_at", &info.created_at)?;
-    Ok(dict)
+    ows_lib::key_store::delete_api_key(id, vault_path(vault_path_opt).as_deref()).map_err(map_err)
 }
 
 /// Python module definition.

@@ -28,11 +28,11 @@ pub struct WalletInfo {
 }
 
 impl From<ows_lib::WalletInfo> for WalletInfo {
-    fn from(w: ows_lib::WalletInfo) -> Self {
-        WalletInfo {
-            id: w.id,
-            name: w.name,
-            accounts: w
+    fn from(value: ows_lib::WalletInfo) -> Self {
+        Self {
+            id: value.id,
+            name: value.name,
+            accounts: value
                 .accounts
                 .into_iter()
                 .map(|a| AccountInfo {
@@ -41,7 +41,7 @@ impl From<ows_lib::WalletInfo> for WalletInfo {
                     derivation_path: a.derivation_path,
                 })
                 .collect(),
-            created_at: w.created_at,
+            created_at: value.created_at,
         }
     }
 }
@@ -94,7 +94,7 @@ pub fn create_wallet(
         passphrase.as_deref(),
         vault_path(vault_path_opt).as_deref(),
     )
-    .map(WalletInfo::from)
+    .map(Into::into)
     .map_err(map_err)
 }
 
@@ -114,13 +114,13 @@ pub fn import_wallet_mnemonic(
         index,
         vault_path(vault_path_opt).as_deref(),
     )
-    .map(WalletInfo::from)
+    .map(Into::into)
     .map_err(map_err)
 }
 
 /// Import a wallet from a hex-encoded private key.
-/// All 6 chains are supported: the provided key is used for its curve's chains,
-/// and a random key is generated for the other curve.
+/// All 9 auto-derived chain families are supported: the provided key is used for
+/// its curve's chains, and a random key is generated for the other curve.
 /// The optional `chain` parameter specifies the key's source chain (e.g. "evm", "solana")
 /// to determine which curve it uses. Defaults to "evm" (secp256k1).
 ///
@@ -145,7 +145,7 @@ pub fn import_wallet_private_key(
         secp256k1_key.as_deref(),
         ed25519_key.as_deref(),
     )
-    .map(WalletInfo::from)
+    .map(Into::into)
     .map_err(map_err)
 }
 
@@ -153,7 +153,7 @@ pub fn import_wallet_private_key(
 #[napi]
 pub fn list_wallets(vault_path_opt: Option<String>) -> Result<Vec<WalletInfo>> {
     ows_lib::list_wallets(vault_path(vault_path_opt).as_deref())
-        .map(|ws| ws.into_iter().map(WalletInfo::from).collect())
+        .map(|wallets| wallets.into_iter().map(Into::into).collect())
         .map_err(map_err)
 }
 
@@ -161,7 +161,7 @@ pub fn list_wallets(vault_path_opt: Option<String>) -> Result<Vec<WalletInfo>> {
 #[napi]
 pub fn get_wallet(name_or_id: String, vault_path_opt: Option<String>) -> Result<WalletInfo> {
     ows_lib::get_wallet(&name_or_id, vault_path(vault_path_opt).as_deref())
-        .map(WalletInfo::from)
+        .map(Into::into)
         .map_err(map_err)
 }
 
@@ -323,9 +323,8 @@ pub fn create_policy(policy_json: String, vault_path_opt: Option<String>) -> Res
 /// List all registered policies.
 #[napi]
 pub fn list_policies(vault_path_opt: Option<String>) -> Result<Vec<serde_json::Value>> {
-    let policies =
-        ows_lib::policy_store::list_policies(vault_path(vault_path_opt).as_deref())
-            .map_err(map_err)?;
+    let policies = ows_lib::policy_store::list_policies(vault_path(vault_path_opt).as_deref())
+        .map_err(map_err)?;
     policies
         .iter()
         .map(|p| serde_json::to_value(p).map_err(|e| napi::Error::from_reason(e.to_string())))
@@ -335,9 +334,8 @@ pub fn list_policies(vault_path_opt: Option<String>) -> Result<Vec<serde_json::V
 /// Get a single policy by ID.
 #[napi]
 pub fn get_policy(id: String, vault_path_opt: Option<String>) -> Result<serde_json::Value> {
-    let policy =
-        ows_lib::policy_store::load_policy(&id, vault_path(vault_path_opt).as_deref())
-            .map_err(map_err)?;
+    let policy = ows_lib::policy_store::load_policy(&id, vault_path(vault_path_opt).as_deref())
+        .map_err(map_err)?;
     serde_json::to_value(&policy).map_err(|e| napi::Error::from_reason(e.to_string()))
 }
 
@@ -393,14 +391,13 @@ pub fn create_api_key(
 /// List all API keys (tokens are never returned).
 #[napi]
 pub fn list_api_keys(vault_path_opt: Option<String>) -> Result<Vec<serde_json::Value>> {
-    let keys =
-        ows_lib::key_store::list_api_keys(vault_path(vault_path_opt).as_deref())
-            .map_err(map_err)?;
+    let keys = ows_lib::key_store::list_api_keys(vault_path(vault_path_opt).as_deref())
+        .map_err(map_err)?;
     keys.iter()
         .map(|k| {
             // Strip wallet_secrets from the output — never expose encrypted material
-            let mut v = serde_json::to_value(k)
-                .map_err(|e| napi::Error::from_reason(e.to_string()))?;
+            let mut v =
+                serde_json::to_value(k).map_err(|e| napi::Error::from_reason(e.to_string()))?;
             v.as_object_mut().map(|m| m.remove("wallet_secrets"));
             Ok(v)
         })
@@ -410,8 +407,7 @@ pub fn list_api_keys(vault_path_opt: Option<String>) -> Result<Vec<serde_json::V
 /// Revoke (delete) an API key by ID.
 #[napi]
 pub fn revoke_api_key(id: String, vault_path_opt: Option<String>) -> Result<()> {
-    ows_lib::key_store::delete_api_key(&id, vault_path(vault_path_opt).as_deref())
-        .map_err(map_err)
+    ows_lib::key_store::delete_api_key(&id, vault_path(vault_path_opt).as_deref()).map_err(map_err)
 }
 
 /// Sign and broadcast a transaction. Returns the transaction hash.

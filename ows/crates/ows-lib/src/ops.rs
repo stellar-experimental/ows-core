@@ -16,8 +16,8 @@ use crate::types::{AccountInfo, SendResult, SignResult, StellarAuthEntryResult, 
 use crate::vault;
 
 /// Convert an EncryptedWallet to the binding-friendly WalletInfo.
-fn wallet_to_info(w: &EncryptedWallet) -> WalletInfo {
-    WalletInfo {
+fn wallet_to_info(w: &EncryptedWallet) -> Result<WalletInfo, OwsLibError> {
+    Ok(WalletInfo {
         id: w.id.clone(),
         name: w.name.clone(),
         accounts: w
@@ -30,11 +30,20 @@ fn wallet_to_info(w: &EncryptedWallet) -> WalletInfo {
             })
             .collect(),
         created_at: w.created_at.clone(),
-    }
+    })
 }
 
 fn parse_chain(s: &str) -> Result<ows_core::Chain, OwsLibError> {
     ows_core::parse_chain(s).map_err(OwsLibError::InvalidInput)
+}
+
+fn prepare_stellar_transaction_payload(
+    chain_id: &str,
+    tx_bytes: &[u8],
+) -> Result<Vec<u8>, OwsLibError> {
+    ows_signer::chains::StellarSigner
+        .transaction_signature_payload_xdr(chain_id, tx_bytes)
+        .map_err(Into::into)
 }
 
 /// Derive accounts for all chain families from a mnemonic at the given index.
@@ -198,7 +207,7 @@ pub fn create_wallet(
     );
 
     vault::save_encrypted_wallet(&wallet, vault_path)?;
-    Ok(wallet_to_info(&wallet))
+    wallet_to_info(&wallet)
 }
 
 /// Import a wallet from a mnemonic phrase. Derives addresses for all chains.
@@ -234,7 +243,7 @@ pub fn import_wallet_mnemonic(
     );
 
     vault::save_encrypted_wallet(&wallet, vault_path)?;
-    Ok(wallet_to_info(&wallet))
+    wallet_to_info(&wallet)
 }
 
 /// Decode a hex-encoded key, stripping an optional `0x` prefix.
@@ -328,19 +337,19 @@ pub fn import_wallet_private_key(
     );
 
     vault::save_encrypted_wallet(&wallet, vault_path)?;
-    Ok(wallet_to_info(&wallet))
+    wallet_to_info(&wallet)
 }
 
 /// List all wallets in the vault.
 pub fn list_wallets(vault_path: Option<&Path>) -> Result<Vec<WalletInfo>, OwsLibError> {
     let wallets = vault::list_encrypted_wallets(vault_path)?;
-    Ok(wallets.iter().map(wallet_to_info).collect())
+    wallets.iter().map(wallet_to_info).collect()
 }
 
 /// Get a single wallet by name or ID.
 pub fn get_wallet(name_or_id: &str, vault_path: Option<&Path>) -> Result<WalletInfo, OwsLibError> {
     let wallet = vault::load_wallet_by_name_or_id(name_or_id, vault_path)?;
-    Ok(wallet_to_info(&wallet))
+    wallet_to_info(&wallet)
 }
 
 /// Delete a wallet from the vault.
@@ -410,24 +419,28 @@ pub fn sign_transaction(
 ) -> Result<SignResult, OwsLibError> {
     let credential = passphrase.unwrap_or("");
     let chain = parse_chain(chain)?;
-    if chain.chain_type == ows_core::ChainType::Stellar {
-        return Err(OwsLibError::InvalidInput(
-            "generic transaction signing is not supported for Stellar smart-wallet flows; use sign_auth_entry and submit via an external relayer".into(),
-        ));
-    }
-
     let tx_hex_clean = tx_hex.strip_prefix("0x").unwrap_or(tx_hex);
     let tx_bytes = hex::decode(tx_hex_clean)
         .map_err(|e| OwsLibError::InvalidInput(format!("invalid hex transaction: {e}")))?;
 
     // Agent mode: token-based signing with policy enforcement
     if credential.starts_with(crate::key_store::TOKEN_PREFIX) {
+        let tx_bytes = if chain.chain_type == ows_core::ChainType::Stellar {
+            prepare_stellar_transaction_payload(chain.chain_id, &tx_bytes)?
+        } else {
+            tx_bytes
+        };
         return crate::key_ops::sign_with_api_key(
             credential, wallet, &chain, &tx_bytes, index, vault_path,
         );
     }
 
     // Owner mode: existing passphrase-based signing (unchanged)
+    let tx_bytes = if chain.chain_type == ows_core::ChainType::Stellar {
+        prepare_stellar_transaction_payload(chain.chain_id, &tx_bytes)?
+    } else {
+        tx_bytes
+    };
     let key = decrypt_signing_key(wallet, chain.chain_type, credential, index, vault_path)?;
     let signer = signer_for_chain(chain.chain_type);
     let output = signer.sign_transaction(key.expose(), &tx_bytes)?;
@@ -491,8 +504,9 @@ pub fn sign_message(
 /// `Signer::External` Ed25519 signer flows. The caller is responsible for
 /// constructing the canonical preimage XDR bytes from simulation output.
 ///
-/// This function does not parse or validate the XDR structure itself; it signs
-/// the provided serialized preimage bytes as supplied by the caller.
+/// OWS validates that the payload is structurally valid
+/// `HashIdPreimageSorobanAuthorization` XDR before hashing and signing the
+/// serialized preimage bytes supplied by the caller.
 pub fn sign_auth_entry(
     wallet: &str,
     chain: &str,
@@ -539,8 +553,11 @@ pub fn sign_auth_entry(
     }
 
     let key = decrypt_signing_key(wallet, chain.chain_type, credential, index, vault_path)?;
-    let signed =
-        ows_signer::chains::StellarSigner.sign_auth_entry(key.expose(), &preimage_bytes)?;
+    let signed = ows_signer::chains::StellarSigner.sign_auth_entry(
+        key.expose(),
+        chain.chain_id,
+        &preimage_bytes,
+    )?;
 
     Ok(StellarAuthEntryResult {
         address: signed.address,
@@ -608,7 +625,7 @@ pub fn sign_and_send(
 
     if chain_info.chain_type == ows_core::ChainType::Stellar {
         return Err(OwsLibError::InvalidInput(
-            "sign_and_send is not yet supported for Stellar smart-wallet flows; use sign_auth_entry and submit via an external relayer".into(),
+            "sign_and_send is not yet supported for Stellar; use sign_transaction for classic G-address signatures or sign_auth_entry for Soroban authorization, then broadcast externally".into(),
         ));
     }
 
@@ -753,7 +770,7 @@ fn broadcast(chain: ChainType, rpc_url: &str, signed_bytes: &[u8]) -> Result<Str
         ChainType::Evm => broadcast_evm(rpc_url, signed_bytes),
         ChainType::Solana => broadcast_solana(rpc_url, signed_bytes),
         ChainType::Stellar => Err(OwsLibError::InvalidInput(
-            "broadcast not yet supported for Stellar smart-wallet flows".into(),
+            "broadcast not yet supported for Stellar; sign classic transactions or auth-entry payloads, then broadcast externally".into(),
         )),
         ChainType::Bitcoin => broadcast_bitcoin(rpc_url, signed_bytes),
         ChainType::Cosmos => broadcast_cosmos(rpc_url, signed_bytes),
@@ -923,8 +940,42 @@ fn extract_json_field(json_str: &str, field: &str) -> Result<String, OwsLibError
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde::Deserialize;
+    use std::fs;
+    use std::path::PathBuf;
 
     // ---- helpers ----
+
+    #[derive(Debug, Deserialize)]
+    struct AuthEntryFixture {
+        preimage_xdr_base64: String,
+        preimage_xdr_hex: String,
+        payload_hash_hex: String,
+        private_key_hex: String,
+        public_key_hex: String,
+        signer_g_address: String,
+        signature_hex: String,
+    }
+
+    fn load_auth_entry_fixture() -> AuthEntryFixture {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../testdata/stellar/auth_entry_external_ed25519.json");
+        serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap()
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct StellarTransactionFixture {
+        chain_id: String,
+        envelope_xdr_hex: String,
+        private_key_hex: String,
+        signature_hex: String,
+    }
+
+    fn load_stellar_transaction_fixture() -> StellarTransactionFixture {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../testdata/stellar/transaction_v1_ed25519.json");
+        serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap()
+    }
 
     /// Build a private-key wallet directly in the vault, bypassing
     /// `import_wallet_private_key` (which touches all chains including TON).
@@ -956,7 +1007,7 @@ mod tests {
             KeyType::PrivateKey,
         );
         vault::save_encrypted_wallet(&wallet, Some(vault)).unwrap();
-        wallet_to_info(&wallet)
+        wallet_to_info(&wallet).unwrap()
     }
 
     const TEST_PRIVKEY: &str = "4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318";
@@ -1139,19 +1190,33 @@ mod tests {
     }
 
     #[test]
-    fn stellar_sign_transaction_is_explicitly_unsupported() {
+    fn stellar_sign_transaction_signs_classic_envelope() {
         let dir = tempfile::tempdir().unwrap();
         let vault = dir.path();
-        create_wallet("stellar-tx", None, None, Some(vault)).unwrap();
+        let fixture = load_stellar_transaction_fixture();
+        import_wallet_private_key(
+            "stellar-tx",
+            &fixture.private_key_hex,
+            Some("stellar"),
+            None,
+            Some(vault),
+            None,
+            None,
+        )
+        .unwrap();
 
-        let err = sign_transaction("stellar-tx", "stellar", "deadbeef", None, None, Some(vault))
-            .unwrap_err();
+        let result = sign_transaction(
+            "stellar-tx",
+            &fixture.chain_id,
+            &fixture.envelope_xdr_hex,
+            None,
+            None,
+            Some(vault),
+        )
+        .unwrap();
 
-        assert!(
-            err.to_string()
-                .contains("generic transaction signing is not supported for Stellar"),
-            "unexpected error: {err}"
-        );
+        assert_eq!(result.signature, fixture.signature_hex);
+        assert!(result.recovery_id.is_none());
     }
 
     #[test]
@@ -1216,13 +1281,22 @@ mod tests {
     fn stellar_auth_entry_signing_returns_payload_hash_and_signature() {
         let dir = tempfile::tempdir().unwrap();
         let vault = dir.path();
-        create_wallet("stellar-auth", None, None, Some(vault)).unwrap();
+        let fixture = load_auth_entry_fixture();
+        import_wallet_private_key(
+            "stellar-auth",
+            &fixture.private_key_hex,
+            Some("stellar"),
+            None,
+            Some(vault),
+            None,
+            None,
+        )
+        .unwrap();
 
-        let preimage = base64::engine::general_purpose::STANDARD.encode(b"fake-auth-xdr");
         let result = sign_auth_entry(
             "stellar-auth",
-            "stellar",
-            &preimage,
+            "stellar:testnet",
+            &fixture.preimage_xdr_base64,
             None,
             Some("base64"),
             None,
@@ -1230,10 +1304,75 @@ mod tests {
         )
         .unwrap();
 
-        assert!(result.address.starts_with('G'));
-        assert_eq!(hex::decode(&result.public_key).unwrap().len(), 32);
-        assert_eq!(hex::decode(&result.payload_hash).unwrap().len(), 32);
-        assert_eq!(hex::decode(&result.signature).unwrap().len(), 64);
+        assert_eq!(result.address, fixture.signer_g_address);
+        assert_eq!(result.public_key, fixture.public_key_hex);
+        assert_eq!(result.payload_hash, fixture.payload_hash_hex);
+        assert_eq!(result.signature, fixture.signature_hex);
+    }
+
+    #[test]
+    fn stellar_auth_entry_signing_rejects_chain_mismatch() {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = dir.path();
+        let fixture = load_auth_entry_fixture();
+        import_wallet_private_key(
+            "stellar-auth-mismatch",
+            &fixture.private_key_hex,
+            Some("stellar"),
+            None,
+            Some(vault),
+            None,
+            None,
+        )
+        .unwrap();
+
+        let err = sign_auth_entry(
+            "stellar-auth-mismatch",
+            "stellar:pubnet",
+            &fixture.preimage_xdr_base64,
+            None,
+            Some("base64"),
+            None,
+            Some(vault),
+        )
+        .unwrap_err();
+
+        assert!(err
+            .to_string()
+            .contains("network_id does not match requested Stellar chain"));
+    }
+
+    #[test]
+    fn stellar_auth_entry_signing_matches_hex_fixture_too() {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = dir.path();
+        let fixture = load_auth_entry_fixture();
+        import_wallet_private_key(
+            "stellar-auth-hex",
+            &fixture.private_key_hex,
+            Some("stellar"),
+            None,
+            Some(vault),
+            None,
+            None,
+        )
+        .unwrap();
+
+        let result = sign_auth_entry(
+            "stellar-auth-hex",
+            "stellar:testnet",
+            &fixture.preimage_xdr_hex,
+            None,
+            Some("hex"),
+            None,
+            Some(vault),
+        )
+        .unwrap();
+
+        assert_eq!(result.address, fixture.signer_g_address);
+        assert_eq!(result.public_key, fixture.public_key_hex);
+        assert_eq!(result.payload_hash, fixture.payload_hash_hex);
+        assert_eq!(result.signature, fixture.signature_hex);
     }
 
     #[test]

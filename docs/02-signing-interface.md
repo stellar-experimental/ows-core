@@ -7,7 +7,6 @@
 ### `sign(request: SignRequest): Promise<SignResult>`
 
 Signs a transaction without broadcasting it. Returns the signed transaction bytes.
-Stellar smart-wallet profiles do not use this operation; they use `signAuthEntry`.
 
 ```typescript
 interface SignRequest {
@@ -56,7 +55,7 @@ An implementation that exposes `signAndSend`:
 - MUST fail clearly if the target transport is unavailable or unsupported
 - MAY expose richer transport metadata in implementation-specific fields
 
-Current Stellar smart-wallet profiles omit `signAndSend`. Callers use `signAuthEntry` and then submit through an external fee-payer or relayer such as OpenZeppelin Relayer/Channels.
+Current Stellar support omits `signAndSend`. Callers sign either a classic transaction envelope via `signTransaction` or a Soroban authorization preimage via `signAuthEntry`, then broadcast externally.
 
 ### `signMessage(request: SignMessageRequest): Promise<SignMessageResult>`
 
@@ -86,7 +85,7 @@ Message signing follows chain-specific conventions:
 
 ### `signAuthEntry(request: SignAuthEntryRequest): Promise<SignAuthEntryResult>`
 
-Signs a serialized Stellar Soroban auth-entry preimage XDR payload. This is the Stellar smart-wallet primitive used with OZ `Signer::External` Ed25519 signers.
+Signs a serialized Stellar `HashIdPreimageSorobanAuthorization` XDR payload. This is the Stellar smart-wallet primitive used with OZ `Signer::External` Ed25519 signers.
 
 ```typescript
 interface SignAuthEntryRequest {
@@ -104,7 +103,7 @@ interface SignAuthEntryResult {
 }
 ```
 
-The caller constructs the canonical auth-entry preimage from simulation output. OWS signs the serialized preimage bytes; it does not own nonce management, expiration-ledger selection, `AuthPayload` assembly, or relayer submission. The returned `address` is the Stellar `G...` signer identity, not the deployed OZ smart-account `C...` address.
+The caller constructs the canonical auth-entry preimage from simulation output. OWS validates that the payload is structurally valid Soroban auth-preimage XDR and that its embedded `network_id` matches the requested Stellar chain such as `stellar:testnet` or `stellar:pubnet`, then signs the serialized preimage bytes. It does not own nonce management, expiration-ledger selection, `AuthPayload` assembly, or relayer submission. The returned `address` is the Stellar `G...` signer identity, not the deployed OZ smart-account `C...` address.
 
 ### `signTypedData(request: SignTypedDataRequest): Promise<SignMessageResult>`
 
@@ -142,9 +141,11 @@ Returns a `SignMessageResult` with the signature and recovery ID. Only supported
 
 ## Serialized Transaction Format
 
-Current OWS implementations accept **already-serialized transaction bytes encoded as hex**. OWS signs those bytes, and `signAndSend` implementations submit the signed payload using the transport required by the target chain.
+Current OWS implementations accept **already-serialized transaction bytes encoded as hex**.
 
-Stellar is the current exception: generic transaction signing is intentionally unsupported for the Stellar smart-wallet profile in this draft implementation. Callers sign serialized Soroban auth-entry preimage bytes with `signAuthEntry`, then submit through an external relayer.
+- For most chains, those bytes are the chain's serialized signable transaction form.
+- For Stellar classic transactions, callers pass a serialized `TransactionEnvelope` XDR blob. OWS derives the network-specific `TransactionSignaturePayload` from the selected Stellar chain (`stellar:pubnet` or `stellar:testnet`), hashes it, and signs that hash with the wallet's Ed25519 key.
+- For Stellar contract-account authorization flows, callers use `signAuthEntry` with serialized `HashIdPreimageSorobanAuthorization` XDR bytes instead of `sign`.
 
 ## Error Handling
 

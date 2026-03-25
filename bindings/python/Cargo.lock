@@ -540,6 +540,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "escape-bytes"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bfcf67fea2815c2fc3b90873fae90957be12ff417335dfadc7f52927feb03b2"
+
+[[package]]
 name = "ff"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1078,6 +1084,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "stellar-strkey 0.0.15",
  "thiserror 2.0.18",
  "tokio",
  "tonic",
@@ -1122,7 +1129,8 @@ dependencies = [
  "sha2",
  "sha3",
  "signal-hook",
- "stellar-strkey",
+ "stellar-strkey 0.0.15",
+ "stellar-xdr",
  "thiserror 2.0.18",
  "zeroize",
 ]
@@ -1663,12 +1671,35 @@ dependencies = [
 
 [[package]]
 name = "stellar-strkey"
+version = "0.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e3aa3ed00e70082cb43febc1c2afa5056b9bb3e348bbb43d0cd0aa88a611144"
+dependencies = [
+ "crate-git-revision",
+ "data-encoding",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "stellar-strkey"
 version = "0.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97e1a364048067bfcd24e6f1a93bba43eeb79c16b854596c841c3e8bab0bfa0c"
 dependencies = [
  "crate-git-revision",
  "data-encoding",
+]
+
+[[package]]
+name = "stellar-xdr"
+version = "22.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e09ea07e51f4123d8142f9b9f6924691413abfcba4ab642b333e795782c0141"
+dependencies = [
+ "crate-git-revision",
+ "escape-bytes",
+ "hex",
+ "stellar-strkey 0.0.9",
 ]
 
 [[package]]

@@ -131,7 +131,7 @@ A single mnemonic derives accounts across all supported chains. The wallet file 
 4. Define the signing and message-signing behavior required by `02-signing-interface.md`.
 5. Document any transaction serialization rules needed to produce deterministic signatures.
 
-Stellar classic fits this pattern. Stellar smart-wallet auth-entry signing adds a chain-specific signing profile on top: callers sign serialized Soroban auth-entry preimage XDR bytes via `signAuthEntry`, then submit through an external relayer or fee-payer flow.
+Stellar classic fits this pattern. Callers sign serialized `TransactionEnvelope` XDR via `signTransaction`, and Soroban contract-account flows add a second Stellar-specific primitive: `signAuthEntry` for serialized auth-entry preimage XDR bytes.
 
 ## References
 

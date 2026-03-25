@@ -183,7 +183,7 @@ enum SignCommands {
     },
     /// Sign a transaction (accepts hex-encoded unsigned transaction bytes)
     Tx {
-        /// Chain (ethereum, arbitrum, solana, bitcoin, cosmos, tron, ton, filecoin, or CAIP-2 ID). For Stellar smart-wallet flows use `auth-entry`.
+        /// Chain (ethereum, arbitrum, solana, bitcoin, cosmos, tron, ton, filecoin, or CAIP-2 ID). Stellar accepts classic TransactionEnvelope XDR here; use `auth-entry` for Soroban authorization payloads.
         #[arg(long)]
         chain: String,
         /// Wallet name or ID (uses stored encrypted mnemonic)
@@ -201,7 +201,7 @@ enum SignCommands {
     },
     /// Sign and broadcast a transaction
     SendTx {
-        /// Chain (ethereum, arbitrum, solana, bitcoin, cosmos, tron, ton, filecoin, or CAIP-2 ID). Stellar smart-wallet flows use an external relayer.
+        /// Chain (ethereum, arbitrum, solana, bitcoin, cosmos, tron, ton, filecoin, or CAIP-2 ID). Stellar signing is supported, but broadcast remains external-only.
         #[arg(long)]
         chain: String,
         /// Wallet name or ID (uses stored encrypted mnemonic)

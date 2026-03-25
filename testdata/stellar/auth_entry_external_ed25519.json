@@ -1,0 +1,22 @@
+{
+  "description": "Deterministic Stellar auth-entry preimage fixture for external Ed25519 signer flows",
+  "preimage_kind": "hash_id_preimage_soroban_authorization",
+  "network_passphrase": "Test SDF Network ; September 2015",
+  "network_id_hex": "cee0302d59844d32bdca915c8203dd44b33fbb7edc19051ea37abedf28ecd472",
+  "nonce": 42,
+  "signature_expiration_ledger": 123456,
+  "invocation_contract_address_kind": "contract",
+  "invocation_contract_hash_hex": "1111111111111111111111111111111111111111111111111111111111111111",
+  "invocation_function_name": "transfer",
+  "invocation_arg_summary": [
+    "address:<signer_g_address>",
+    "u32:100"
+  ],
+  "preimage_xdr_base64": "zuAwLVmETTK9ypFcggPdRLM/u37cGQUeo3q+3yjs1HIAAAAAAAAAKgAB4kAAAAAAAAAAARERERERERERERERERERERERERERERERERERERERERERAAAACHRyYW5zZmVyAAAAAgAAABIAAAAAAAAAANdamAGCsQq31Uv+08lkBzoO4XLz2qYjJa8CGmj3B1EaAAAAAwAAAGQAAAAA",
+  "preimage_xdr_hex": "cee0302d59844d32bdca915c8203dd44b33fbb7edc19051ea37abedf28ecd472000000000000002a0001e24000000000000000011111111111111111111111111111111111111111111111111111111111111111000000087472616e7366657200000002000000120000000000000000d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a000000030000006400000000",
+  "payload_hash_hex": "9e1a4543569a8df8b1fd7ac9411b887f66c555d58c0ce60f07efdad9396a5d05",
+  "private_key_hex": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
+  "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+  "signer_g_address": "GDLVVGABQKYQVN6VJP7NHSLEA45A5YLS6PNKMIZFV4BBU2HXA5IRVHUR",
+  "signature_hex": "95f46985dd4bd35fbbc61368a5c7282b77313bde0b762e67eef440b916b731ae76406ad1ae912ee4630b9b27696226f0f6c08e4d7c6b811dc7368b041552dc08"
+}

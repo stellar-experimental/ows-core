@@ -87,12 +87,6 @@ pub fn sign_with_api_key(
     index: Option<u32>,
     vault_path: Option<&Path>,
 ) -> Result<crate::types::SignResult, OwsLibError> {
-    if chain.chain_type == ows_core::ChainType::Stellar {
-        return Err(OwsLibError::InvalidInput(
-            "generic transaction signing is not supported for Stellar smart-wallet flows; use sign_auth_entry and submit via an external relayer".into(),
-        ));
-    }
-
     // 1. Look up key file
     let token_hash = key_store::hash_token(token);
     let key_file = key_store::load_api_key_by_token_hash(&token_hash, vault_path)?;
@@ -259,7 +253,11 @@ pub fn sign_auth_entry_with_api_key(
     }
 
     let key = decrypt_key_from_api_key(&key_file, &wallet.id, token, chain.chain_type, index)?;
-    let signed = ows_signer::chains::StellarSigner.sign_auth_entry(key.expose(), preimage_xdr)?;
+    let signed = ows_signer::chains::StellarSigner.sign_auth_entry(
+        key.expose(),
+        chain.chain_id,
+        preimage_xdr,
+    )?;
 
     Ok(crate::types::StellarAuthEntryResult {
         address: signed.address,

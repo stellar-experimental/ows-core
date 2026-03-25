@@ -24,6 +24,7 @@ bech32 = "0.11"
 base64 = "0.22"
 bs58 = { version = "0.5", features = ["check"] }
 stellar-strkey = "0.0.15"
+stellar-xdr = "22.2.0"
 zeroize = { version = "1", features = ["derive"] }
 thiserror = "2"
 hex = "0.4"

@@ -4,6 +4,20 @@ use crate::audit;
 use crate::CliError;
 use zeroize::Zeroize;
 
+fn print_wallet_details(wallet: &ows_lib::WalletInfo) {
+    println!("ID:      {}", wallet.id);
+    println!("Name:    {}", wallet.name);
+    println!("Secured: ✓ (encrypted)");
+    for acct in &wallet.accounts {
+        println!("  {} → {}", acct.chain_id, acct.address);
+        if !acct.derivation_path.is_empty() {
+            println!("    Path: {}", acct.derivation_path);
+        }
+    }
+    println!("Created: {}", wallet.created_at);
+    println!();
+}
+
 pub fn create(name: &str, words: u32, show_mnemonic: bool) -> Result<(), CliError> {
     // Generate mnemonic, then import it to create the wallet
     let mut mnemonic_phrase = ows_lib::generate_mnemonic(words)?;
@@ -12,14 +26,7 @@ pub fn create(name: &str, words: u32, show_mnemonic: bool) -> Result<(), CliErro
     audit::log_wallet_created(&info);
 
     println!("Wallet created: {}", info.id);
-    println!("Name:           {name}");
-    println!();
-    for acct in &info.accounts {
-        println!("  {} → {}", acct.chain_id, acct.address);
-        if !acct.derivation_path.is_empty() {
-            println!("    Path: {}", acct.derivation_path);
-        }
-    }
+    print_wallet_details(&info);
 
     if show_mnemonic {
         eprintln!();
@@ -90,14 +97,7 @@ pub fn import(
     audit::log_wallet_imported(&info);
 
     println!("Wallet imported: {}", info.id);
-    println!("Name:            {name}");
-    println!();
-    for acct in &info.accounts {
-        println!("  {} → {}", acct.chain_id, acct.address);
-        if !acct.derivation_path.is_empty() {
-            println!("    Path: {}", acct.derivation_path);
-        }
-    }
+    print_wallet_details(&info);
 
     Ok(())
 }
@@ -170,14 +170,7 @@ pub fn list() -> Result<(), CliError> {
     }
 
     for w in &wallets {
-        println!("ID:      {}", w.id);
-        println!("Name:    {}", w.name);
-        println!("Secured: ✓ (encrypted)");
-        for acct in &w.accounts {
-            println!("  {} → {}", acct.chain_id, acct.address);
-        }
-        println!("Created: {}", w.created_at);
-        println!();
+        print_wallet_details(w);
     }
 
     Ok(())

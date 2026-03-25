@@ -75,7 +75,9 @@ Each wallet is stored as a single JSON file extending the Ethereum Keystore v3 s
     }
   },
   "key_type": "mnemonic",
-  "metadata": {}
+  "metadata": {
+    "profile": "agent-treasury"
+  }
 }
 ```
 
@@ -90,7 +92,9 @@ Each wallet is stored as a single JSON file extending the Ethereum Keystore v3 s
 | `accounts` | array | yes | Derived accounts (see Account object) |
 | `crypto` | object | yes | Encryption parameters (see Crypto object) |
 | `key_type` | string | yes | `mnemonic` (BIP-39) or `private_key` (raw) |
-| `metadata` | object | no | Extensible metadata |
+| `metadata` | object | no | Extensible implementation metadata |
+
+The `metadata` object remains extensible. Implementations SHOULD preserve unknown keys when reading and writing wallet files.
 
 ## API Key File Format
 
